@@ -45,7 +45,7 @@ runtime dir when missing.
 ## New-machine quickstart
 
 ```bash
-git clone <this repo> zcode-router-kit && cd zcode-router-kit
+git clone git@github.com:adelvillar1/zcode-router.git zcode-router-kit && cd zcode-router-kit
 
 # 1. a roster to edit — either the documented template or a copy of a live machine's
 node bin/zcode-router-kit.mjs init --template      # or: kit init   (on the source machine, then commit roster.json)
