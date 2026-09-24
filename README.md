@@ -127,6 +127,21 @@ input formats:
 }
 ```
 
+A fallback fires when its target's provider has no key or is disabled in this
+roster — never for quality reasons. Anything that fires is reported as a remap
+(`kit status`, `kit apply`, `kit doctor`), so a degraded router is never silent.
+`omniModel`, `wideModel`, and `mixture.aggregator` take the same treatment as an
+ordered list (first is preferred):
+
+```json
+"omniModel": ["xiaomi-mimo/mimo-v2.6-pro", "zai-coding-plan/GLM-5.3-Flash"]
+```
+
+`kit export` keeps the fallback chains and tier notes from the roster it
+overwrites, since live state records only where each tier resolved to.
+A provider marked `"billing": "payg"` is refused as a target unless you set
+`allowPayg: true` — the router must not quietly start costing per-token money.
+
 **Delegation** — picker profiles map onto tiers; `mixture` fans a hard task
 out to several proposers with a judge that integrates when merging adds value:
 

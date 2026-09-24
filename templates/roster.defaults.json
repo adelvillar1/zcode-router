@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "note": "TEMPLATE \u2014 copy to roster.json and edit. One roster per machine; keys never live here (set them with: kit env set NAME=value). Everything else in this file is what `kit apply` renders from.",
+  "note": "TEMPLATE — copy to roster.json and edit. One roster per machine; keys never live here (set them with: kit env set NAME=value). Everything else in this file is what `kit apply` renders from.",
   "router": {
-    "note": "port/localToken \u2014 how ZCode reaches the proxy and how kit talks to /route",
+    "note": "port/localToken — how ZCode reaches the proxy and how kit talks to /route",
     "port": 8300,
     "localToken": "local-auto-router"
   },
@@ -15,7 +15,7 @@
   "allowPayg": false,
   "providers": {
     "deepseek": {
-      "note": "payg \u2014 registered for the picker only; never a routing target unless allowPayg is true.",
+      "note": "payg — registered for the picker only; never a routing target unless allowPayg is true.",
       "providerName": "DeepSeek",
       "templateId": "deepseek",
       "apiKeyEnv": "DEEPSEEK_API_KEY",
@@ -86,33 +86,56 @@
       "models": []
     }
   },
-  "omniModel": "xiaomi-mimo/mimo-v2.6-pro",
-  "wideModel": "xiaomi-mimo/mimo-v2.6-pro",
+  "omniModel": [
+    "xiaomi-mimo/mimo-v2.6-pro",
+    "zai-coding-plan/GLM-5.3-Flash",
+    "stepfun/step-5-preview"
+  ],
+  "wideModel": [
+    "xiaomi-mimo/mimo-v2.6-pro",
+    "zai-coding-plan/GLM-5.3-Flash",
+    "stepfun/step-3.7-flash"
+  ],
   "tiers": {
     "quick": {
       "note": "quick answers, tiny edits, formatting, extraction",
       "target": "token-plan/qwen3.8-flash",
-      "fallbacks": []
+      "fallbacks": [
+        "stepfun/step-3.7-flash",
+        "zai-coding-plan/GLM-5.3-Flash"
+      ]
     },
     "standard_code": {
       "note": "routine features, normal debugging, tool work",
       "target": "stepfun/step-3.7-flash",
-      "fallbacks": []
+      "fallbacks": [
+        "zai-coding-plan/GLM-5.3-Flash",
+        "token-plan/qwen3.8-flash"
+      ]
     },
     "hard": {
-      "note": "architecture, intricate reasoning, big refactors \u2014 this is what MoA fans out on",
+      "note": "architecture, intricate reasoning, big refactors — this is what MoA fans out on",
       "target": "zai-coding-plan/GLM-5.3-Flash",
-      "fallbacks": []
+      "fallbacks": [
+        "xiaomi-mimo/mimo-v2.6-pro",
+        "stepfun/step-5-preview"
+      ]
     },
     "prose": {
       "note": "docs, summaries, explanations, reports",
       "target": "xiaomi-mimo/mimo-v2.6-flash",
-      "fallbacks": []
+      "fallbacks": [
+        "zai-coding-plan/GLM-5.3-Flash",
+        "token-plan/qwen3.8-flash"
+      ]
     },
     "deep_context": {
       "note": "connecting many files, very long documents",
       "target": "xiaomi-mimo/mimo-v2.6-pro",
-      "fallbacks": []
+      "fallbacks": [
+        "zai-coding-plan/GLM-5.3-Flash",
+        "stepfun/step-3.7-flash"
+      ]
     }
   },
   "profiles": {
@@ -144,7 +167,11 @@
       "xiaomi-mimo/mimo-v2.6-pro",
       "stepfun/step-5-preview"
     ],
-    "aggregator": "zai-coding-plan/GLM-5.3-Flash",
+    "aggregator": [
+      "zai-coding-plan/GLM-5.3-Flash",
+      "xiaomi-mimo/mimo-v2.6-pro",
+      "stepfun/step-5-preview"
+    ],
     "proposerTimeoutMs": 240000
   },
   "routing": {
@@ -155,7 +182,7 @@
   },
   "workflows": {
     "shapes": {
-      "cross-env-data-comparison": "comparing the same data across environments \u2014 staging vs production, or two datasets \u2014 where counts must be reproduced independently and access stays read-only",
+      "cross-env-data-comparison": "comparing the same data across environments — staging vs production, or two datasets — where counts must be reproduced independently and access stays read-only",
       "data-triage": "data is wrong or a data-shaped bug needs reproducing, root-causing, and confirming against the source of truth",
       "plan-backlog-generation": "a scope of work needs a structured plan backlog with sequenced, committable steps",
       "regression-claim-verification": "someone claims a regression and the question is whether the evidence supports it before anything is reverted"
@@ -163,11 +190,11 @@
     "registry": {
       "swarm": {
         "taskArg": "task",
-        "shape": "a large task that decomposes into several substantial independent parts \u2014 build or analyze something big where parallel builders with reviews and an integrated deliverable win"
+        "shape": "a large task that decomposes into several substantial independent parts — build or analyze something big where parallel builders with reviews and an integrated deliverable win"
       },
       "review-sweep": {
         "taskArg": "task",
-        "shape": "reviewing changes \u2014 a diff, a PR, or modified files \u2014 where findings must be confirmed before anyone acts on them",
+        "shape": "reviewing changes — a diff, a PR, or modified files — where findings must be confirmed before anyone acts on them",
         "defaults": {
           "base": ""
         }
@@ -186,7 +213,7 @@
       },
       "deep-dive": {
         "taskArg": "scope",
-        "shape": "understanding, explaining, or assessing how a system works \u2014 architecture questions, onboarding, improvement shortlists"
+        "shape": "understanding, explaining, or assessing how a system works — architecture questions, onboarding, improvement shortlists"
       },
       "coverage-push": {
         "taskArg": "target",
@@ -194,11 +221,11 @@
       },
       "content-production": {
         "taskArg": "brief",
-        "shape": "producing written content from a brief \u2014 a report, article, deck content, or long-form document"
+        "shape": "producing written content from a brief — a report, article, deck content, or long-form document"
       },
       "decision-memo": {
         "taskArg": "question",
-        "shape": "a decision between plausible options \u2014 architecture choices, build-vs-buy, strategy calls \u2014 where the user wants a reasoned recommendation"
+        "shape": "a decision between plausible options — architecture choices, build-vs-buy, strategy calls — where the user wants a reasoned recommendation"
       },
       "postmortem": {
         "taskArg": "incident",
@@ -206,7 +233,7 @@
       },
       "adversarial-solve": {
         "taskArg": "task",
-        "shape": "a problem with several plausible solutions \u2014 or one naming multiple approaches like A vs B, or asking to build/try more than one \u2014 where competing independent attempts and a judge picking the best beats one opinion"
+        "shape": "a problem with several plausible solutions — or one naming multiple approaches like A vs B, or asking to build/try more than one — where competing independent attempts and a judge picking the best beats one opinion"
       }
     }
   },
