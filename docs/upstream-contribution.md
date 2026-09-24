@@ -241,16 +241,24 @@ The branch is built, verified, and **pushed to a repo we own**. Only opening
 the PR itself is left, and that is blocked by a hard permission, not by
 anything about the pack.
 
-**The head repo.** `adelvillar1/zcode-router-pr` (private), branch
+**The head repo.** `adelvillar1/ZCode` (public), branches `workflow-pack` and
 `contrib/workflow-pack`, commit `253b1e0`. It is a clone of upstream — full
-history, not a fork — pushed over SSH, which works with the account's SSH key
-even though the PAT cannot reach this repo. Verified after the push by
-re-cloning it: byte-identical to `workflows/`, 33 files, `.prettierignore`
-entry present, and the same commit SHA as the local branch. Compared against
-upstream `main` (`29628c9`), the diff is 34 files, 24511 insertions, 0
-deletions, with `.prettierignore` the only pre-existing file touched. That is
-exactly what GitHub will compute, because the branch shares upstream's
-history rather than being an unrelated tree.
+history, not a GitHub fork — pushed over SSH, which works with the account's
+SSH key even though the PAT cannot reach this repo. Verified after the push by
+re-cloning: byte-identical to `workflows/`, 33 files, `.prettierignore` entry
+present, same commit SHA as the local branch. Compared against upstream `main`
+(`29628c9`) the diff is 34 files, 24511 insertions, 0 deletions, with
+`.prettierignore` the only pre-existing file touched.
+
+**The naming rule that wasted a run.** GitHub only resolves a cross-repository
+head as `owner:branch`, within the fork network — it looks in
+`{owner}/{base-repo-name}`. So the head repo has to be *named* `ZCode`, and the
+branch name must not contain a slash when it goes in a URL. An earlier attempt
+pushed to `adelvillar1/zcode-router-pr` on a branch called
+`contrib/workflow-pack`, and that could never have worked: `gh pr create` rejects
+the three-part ref outright with `invalid qualified head ref format`, and the
+compare URL is ambiguous for a slashed branch. Both are fixed here — the repo is
+named `ZCode`, and a slash-free `workflow-pack` branch is pushed alongside.
 
 **Why the fork path was abandoned.** `gh repo fork zai-org/ZCode` fails with
 `HTTP 403: Resource not accessible by personal access token`, and a direct
@@ -283,17 +291,45 @@ permissions the token was never granted: public means anyone may fork and
 open a pull request *as a user*, which is not the same as this token being
 allowed to.
 
-**The one click.** Open this in a browser logged in as `adelvillar1`:
+**The one click.** With a correctly named head the whole thing is one short URL,
+title included:
 
 ```
-https://github.com/zai-org/ZCode/compare/main...adelvillar1:zcode-router-pr:contrib/workflow-pack?expand=1
+https://github.com/zai-org/ZCode/compare/main...adelvillar1:workflow-pack?expand=1&title=<urlencoded>
 ```
 
-Cross-repo compare needs no fork relationship, and the browser session has
-the account's real permissions rather than the PAT's. The PR body is
-`docs/upstream-pr-workflow-pack.md` in this repo, ready to paste into the
-description. The head repo is private, which GitHub permits for a PR into a
-public repo; the PR itself will be public.
+`title` and `body` are `gh pr create --web`'s own prefill mechanism and do work,
+but the body is 141 lines and exceeds the maximum URL length — `gh` itself
+refuses with `cannot open in browser: maximum URL length exceeded`. So the title
+goes in the URL and the body is put on the clipboard with `pbcopy`, leaving one
+paste and one click. The body is `docs/upstream-pr-workflow-pack.md` in this
+repo.
+
+The token still cannot do the click for you: with the head now resolving
+correctly, both API surfaces refuse at the permission check rather than at
+validation — `POST /repos/zai-org/ZCode/pulls` returns 403 and the GraphQL
+`createPullRequest` mutation returns `Resource not accessible by personal access
+token`. That is the token's `metadata=read` grant on `zai-org/ZCode`, unchanged.
+
+**Driving the browser instead of clicking.** The only credential on this machine
+is that fine-grained PAT — no classic token, no `.netrc`, no env var — so the
+browser session is the only thing that can create this PR. Computer Use could
+submit it, but it is blocked at the macOS gate: `requestAccess` reports
+`"accessibility": "denied"` with `ax_error: "api_disabled"`, `persisted: null`,
+and `screen_recording: "denied"` — the grant has never been made, and restarting
+the helper (the documented remedy) does not change it. Granting Accessibility and
+Screen Recording to **ZCode Computer Use.app** in **System Settings → Privacy &
+Security**, then fully quitting and reopening ZCode, would let the PR be filed
+without a human click. Note that all three capture targets — Chrome, Finder and
+Notes — fail identically, which is what pins this to the helper's grant rather
+than to anything about Chrome. Chrome is also not running with a DevTools port,
+so the CDP path is closed too.
+
+A **classic** PAT with the `public_repo` scope is the other durable answer: it
+can fork and open PRs against any public repo, which is the token type this task
+actually needs. A fine-grained PAT cannot be granted write on a repo the account
+does not own or collaborate on, so no amount of re-scoping the current one will
+ever do it.
 
 One route that does *not* work, recorded so it is not tried again: moving the
 head branch into a repo the token can write (the kit itself, for instance) so

@@ -12,11 +12,24 @@ set -euo pipefail
 
 UPSTREAM="zai-org/ZCode"
 BRANCH="contrib/workflow-pack"
+# GitHub resolves a cross-repo PR head as `owner:branch` inside the fork network,
+# i.e. it looks in `{owner}/{base-repo-name}`. The head repo must therefore be
+# named ZCode, and the ref that goes into `gh pr create` must not contain a slash
+# (a slashed branch makes `--head` and the compare URL ambiguous).
+HEAD_BRANCH="workflow-pack"
 KIT="$(cd "$(dirname "$0")/.." && pwd)"
 WORK="${TMPDIR:-/tmp}/zcode-upstream-pr"
 
-echo "== fork $UPSTREAM (needs fork permission on the PAT) =="
-gh repo fork "$UPSTREAM" --clone=false
+OWNER="$(gh api user --jq .login)"
+
+echo "== ensure the fork-shaped head repo $OWNER/ZCode exists =="
+# A fine-grained PAT cannot call the fork endpoint at all (403 on any public
+# repo), but it can create a repo, and a repo named after the base is what makes
+# the cross-repo head resolve. `private:false` must go as JSON: `-f` sends
+# strings, and "false" comes back private.
+gh api -X POST user/repos --input - >/dev/null 2>&1 <<JSON || true
+{"name":"ZCode","private":false,"description":"Head repo for the workflow-pack PR to $UPSTREAM","has_issues":false,"has_wiki":false,"has_projects":false,"auto_init":false}
+JSON
 
 echo "== clone upstream main =="
 rm -rf "$WORK"
@@ -82,9 +95,23 @@ git -c user.name="$(gh api user --jq .login)" \
 不碰任何代码路径：`workflows/` 不在 `pnpm-workspace.yaml` 的显式 glob 里，
 不是 workspace package；`pnpm typecheck` 按名字构建项目，没有一个覆盖它。
 MSG
-git push --force --set-upstream "git@github.com:$(gh api user --jq .login)/ZCode.git" "$BRANCH"
+git push --force --set-upstream "git@github.com:$OWNER/ZCode.git" "$BRANCH"
+git push --force "git@github.com:$OWNER/ZCode.git" "$BRANCH:$HEAD_BRANCH"
 
 echo "== open the PR =="
-gh pr create --repo "$UPSTREAM" --base main --head "$(gh api user --jq .login):$BRANCH" \
+# `--body-file` goes over the URL, so the body's length is fine here; the browser
+# prefill route below is the one that hits GitHub's maximum URL length.
+gh pr create --repo "$UPSTREAM" --base main --head "$OWNER:$HEAD_BRANCH" \
   --title "新增 workflows/：32 个保存的 dynamic workflow" \
-  --body-file "$KIT/docs/upstream-pr-workflow-pack.md"
+  --body-file "$KIT/docs/upstream-pr-workflow-pack.md" || {
+  echo
+  echo "PR creation refused (the token cannot write to $UPSTREAM). Fall back to the"
+  echo "browser: the title prefills over the URL, the body is too long for one."
+  TITLE="新增 workflows/：32 个保存的 dynamic workflow"
+  ENCODED="$(python3 -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.argv[1]))' "$TITLE")"
+  pbcopy < "$KIT/docs/upstream-pr-workflow-pack.md"
+  echo "Body is on the clipboard. Open this and paste it:"
+  echo
+  echo "https://github.com/$UPSTREAM/compare/main...$OWNER:$HEAD_BRANCH?expand=1&title=$ENCODED"
+  open "https://github.com/$UPSTREAM/compare/main...$OWNER:$HEAD_BRANCH?expand=1&title=$ENCODED" || true
+}
