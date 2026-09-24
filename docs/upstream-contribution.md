@@ -276,6 +276,16 @@ So the only remaining step is permission, not preparation: grant the PAT
 fork access on `zai-org/ZCode` and run `bin/open-upstream-pr.sh`, or open the
 PR by hand from the prepared branch using the body already in the repo.
 
+There is a route that needs no fork permission at all, and it is deliberately
+**not** taken here: push the prepared clone's `contrib/workflow-pack` branch
+into any repo under `adelvillar1`, then `POST /repos/zai-org/ZCode/pulls`
+with that branch as `head`. Because the branch was cloned from upstream it
+shares history, so the computed diff is the same add-only 34-file patch — a
+fork is only a convenience for how GitHub labels the head repo. The reason to
+hold off is that it means publishing a repo containing a full copy of ZCode
+to hand GitHub a head to compare, which is a bigger and more public act than
+opening one PR; that is the user's call, not a workaround to take quietly.
+
 ## Candidate: the model router (not contributed)
 
 What: `router/server.js` — an OpenAI-compatible local proxy that routes each
