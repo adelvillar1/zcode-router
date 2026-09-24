@@ -305,11 +305,30 @@ goes in the URL and the body is put on the clipboard with `pbcopy`, leaving one
 paste and one click. The body is `docs/upstream-pr-workflow-pack.md` in this
 repo.
 
-The token still cannot do the click for you: with the head now resolving
-correctly, both API surfaces refuse at the permission check rather than at
-validation — `POST /repos/zai-org/ZCode/pulls` returns 403 and the GraphQL
-`createPullRequest` mutation returns `Resource not accessible by personal access
-token`. That is the token's `metadata=read` grant on `zai-org/ZCode`, unchanged.
+GitHub also prints its own target URL when the branch is pushed:
+
+```
+https://github.com/adelvillar1/ZCode/pull/new/workflow-pack
+```
+
+That page lets you pick the base repository, which is the thing to check. Open
+source pull requests normally run through the fork network — a head repo that is
+*not* a fork of the base is not in that network, and cross-repo compare then
+reports "There isn't anything to compare" even though the branch is one commit
+ahead. `adelvillar1/ZCode` was created rather than forked (the fork endpoint is
+closed to this token), so if that page will not offer `zai-org/ZCode` as a base,
+the fork is the missing piece: fork upstream in the browser, and the branch is
+pushed to the fork from here. Deleting `adelvillar1/ZCode` first frees the name
+so the fork lands on `adelvillar1/ZCode` and `owner:branch` resolves to it.
+
+The token still cannot do the click for you, and the reason is sharper than this
+document previously said. It is not just `metadata=read` on `zai-org/ZCode`: **this
+token type cannot create pull requests at all.** Proved with a probe PR in
+`adelvillar1/ZCode`, a repo where the token holds `admin: true, push: true` — the
+GraphQL `createPullRequest` mutation still returns `Resource not accessible by
+personal access token`. A fine-grained PAT without the Pull-requests permission
+has none of it anywhere, on any repo. The `metadata=read` grant on `zai-org/ZCode`
+is a second, independent wall on top of that.
 
 **Driving the browser instead of clicking.** The only credential on this machine
 is that fine-grained PAT — no classic token, no `.netrc`, no env var — so the
