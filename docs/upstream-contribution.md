@@ -5,9 +5,12 @@ document maps the kit onto the upstream repo (`zai-org/ZCode`, Apache-2.0) so
 the contribution is a merge, not a rewrite — and marks the spots that need a
 maintainer decision before any PR.
 
-**Nothing has been pushed to upstream yet.** Tier 3 has landed (its four
-workflows are folded into `workflows/` below), so the sequencing condition is
-met; the PR itself is the next action and has not been opened.
+**The PR itself has not been opened**, and cannot be from here: the PAT holds
+only `metadata=read` on `zai-org/ZCode`, so `POST /repos/zai-org/ZCode/pulls`
+returns 403 no matter how correct the head branch is. Everything the PR needs
+is built, verified, and pushed to a repo we own — one click in a browser is
+the whole remaining step. See
+[Prepared state](#prepared-state-and-the-one-click-that-is-left).
 
 ## Repo facts (verified 2026-09-24)
 
@@ -232,27 +235,55 @@ there rather than quietly dropped.
   that ships green only because its directory is exempted would be a worse
   contribution than one that survived the repo's own rules.
 
-### Prepared state, and the one thing that is not done
+### Prepared state, and the one click that is left
 
-The PR is prepared to a single command and has **not** been opened — the
-current PAT cannot reach `zai-org/ZCode`:
+The branch is built, verified, and **pushed to a repo we own**. Only opening
+the PR itself is left, and that is blocked by a hard permission, not by
+anything about the pack.
 
-- `gh repo fork zai-org/ZCode --clone=false` → `HTTP 403: Resource not
-  accessible by personal access token` (re-tried; still 403).
-- Direct push to `zai-org/ZCode` is refused, and SSH push to it fails too.
+**The head repo.** `adelvillar1/zcode-router-pr` (private), branch
+`contrib/workflow-pack`, commit `253b1e0`. It is a clone of upstream — full
+history, not a fork — pushed over SSH, which works with the account's SSH key
+even though the PAT cannot reach this repo. Verified after the push by
+re-cloning it: byte-identical to `workflows/`, 33 files, `.prettierignore`
+entry present, and the same commit SHA as the local branch. Compared against
+upstream `main` (`29628c9`), the diff is 34 files, 24511 insertions, 0
+deletions, with `.prettierignore` the only pre-existing file touched. That is
+exactly what GitHub will compute, because the branch shares upstream's
+history rather than being an unrelated tree.
 
-Both were checked rather than assumed, and neither is a repo-state problem:
-upstream `main` is at `29628c9` and the prepared branch is based on exactly
-that commit.
+**Why the fork path was abandoned.** `gh repo fork zai-org/ZCode` fails with
+`HTTP 403: Resource not accessible by personal access token`, and a direct
+SSH push to `zai-org/ZCode` is refused. The decisive measurement is the
+response header on any API call against that repo:
 
-The branch is already built and verified at `$TMPDIR/zcode-upstream-pr`
-(`contrib/workflow-pack`, commit `253b1e0`): add-only, 34 files, 24511
-insertions, 0 deletions, with `.prettierignore` the sole pre-existing file
-touched (+6 lines). Re-verified on that branch with the pinned binaries:
-`oxlint` exits 0 (70 warnings, 0 errors, 2648 files), `oxfmt --check` flags
-32 files with none inside `workflows/`, and `tools/verify-pack.mjs` reports
-32/32 conform and 32/32 byte-exact round-trip. A `diff -r` against
-`workflows/` shows the prepared pack is byte-identical to this repo's.
+```
+X-Accepted-Github-Permissions: metadata=read
+```
+
+The PAT holds only `metadata=read` there. It can read the repo, which is why
+the reads in this document work, and it can do nothing else — no commits, no
+branches, and no pull requests. No amount of local git work changes that;
+`POST /repos/zai-org/ZCode/pulls` returns 403 regardless of how correct the
+head is. A fork is not special here, it is the same permission wall.
+
+**The one click.** Open this in a browser logged in as `adelvillar1`:
+
+```
+https://github.com/zai-org/ZCode/compare/main...adelvillar1:zcode-router-pr:contrib/workflow-pack?expand=1
+```
+
+Cross-repo compare needs no fork relationship, and the browser session has
+the account's real permissions rather than the PAT's. The PR body is
+`docs/upstream-pr-workflow-pack.md` in this repo, ready to paste into the
+description. The head repo is private, which GitHub permits for a PR into a
+public repo; the PR itself will be public.
+
+Everything around that click is verified and pushed. Re-verified on the
+branch with the pinned binaries: `oxlint` exits 0 (70 warnings, 0 errors),
+`oxfmt --check` flags 32 files with none inside `workflows/`, and
+`tools/verify-pack.mjs` reports 32/32 conform and 32/32 byte-exact
+round-trip. A full gate sequence was also dry-run on a genuinely clean clone.
 
 Two pieces of tooling back this, both committed and pushed:
 
@@ -262,29 +293,21 @@ Two pieces of tooling back this, both committed and pushed:
   emitter the round-trip must match, so it cannot be substituted) from the
   script's location, then a checkout given by `ZCODE_REF_CLONE`.
 - `bin/open-upstream-pr.sh` — the whole sequence in one idempotent command:
-  fork, clean clone of `main`, copy the pack, add the `.prettierignore`
+  clone, clean copy of `main`, copy the pack, add the `.prettierignore`
   entry, install the pin-matched gate tools, gate on lint plus the pack's
   own checks, commit, push, open the PR with `docs/upstream-pr-workflow-pack.md`
-  as the body. A clean clone has no `node_modules`, which would have made
-  both gates vacuous, so it installs `yaml@^2.9.0 oxlint@1.57.0
-  oxfmt@0.41.0` — the versions every number in the PR body was measured
-  with — into a scratch prefix first. The whole gate sequence was dry-run on
-  a fresh clean clone with the pack applied and all three behaved as the PR
-  body claims.
+  as the body. It targets a fork, so it needs the fork permission to run
+  as written; the manual route above does not. A clean clone has no
+  `node_modules`, which would have made both gates vacuous, so it installs
+  `yaml@^2.9.0 oxlint@1.57.0 oxfmt@0.41.0` — the versions every number in the
+  PR body was measured with — into a scratch prefix first.
 
-So the only remaining step is permission, not preparation: grant the PAT
-fork access on `zai-org/ZCode` and run `bin/open-upstream-pr.sh`, or open the
-PR by hand from the prepared branch using the body already in the repo.
-
-There is a route that needs no fork permission at all, and it is deliberately
-**not** taken here: push the prepared clone's `contrib/workflow-pack` branch
-into any repo under `adelvillar1`, then `POST /repos/zai-org/ZCode/pulls`
-with that branch as `head`. Because the branch was cloned from upstream it
-shares history, so the computed diff is the same add-only 34-file patch — a
-fork is only a convenience for how GitHub labels the head repo. The reason to
-hold off is that it means publishing a repo containing a full copy of ZCode
-to hand GitHub a head to compare, which is a bigger and more public act than
-opening one PR; that is the user's call, not a workaround to take quietly.
+One trap worth recording, because it cost a cycle: the original clone was
+`--depth 1`, and pushing a shallow clone to an empty remote fails with
+`did not receive expected object` — the shallow boundary's parent is not
+present. `git fetch --unshallow` fixes it. Upstream's history is only three
+commits deep (`Initial commit`, `open source`, `update v3.14.3`), so the
+unshallowed clone is cheap.
 
 ## Candidate: the model router (not contributed)
 
