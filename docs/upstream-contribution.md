@@ -5,12 +5,30 @@ document maps the kit onto the upstream repo (`zai-org/ZCode`, Apache-2.0) so
 the contribution is a merge, not a rewrite — and marks the spots that need a
 maintainer decision before any PR.
 
-**The PR itself has not been opened**, and cannot be from here: the PAT holds
-only `metadata=read` on `zai-org/ZCode`, so `POST /repos/zai-org/ZCode/pulls`
-returns 403 no matter how correct the head branch is. Everything the PR needs
-is built, verified, and pushed to a repo we own — one click in a browser is
-the whole remaining step. See
-[Prepared state](#prepared-state-and-the-one-click-that-is-left).
+**STOPPED (2026-09-24) — `zai-org/ZCode` does not accept pull requests.** The
+contribution is abandoned at the user's decision, on evidence rather than
+frustration: `POST /repos/zai-org/ZCode/pulls` returns **404 for every input**,
+including `head: adelvillar1:main` — a valid head with no diff, which should
+fail with "no commits between", not "not found". The endpoint rejects before it
+looks at the branch. The repo carries the same shape: `has_issues: false`,
+`has_wiki: false`, `has_discussions: false`, and zero pull requests in its entire
+history, while every other repository in the `zai-org` organization reports
+`issues=true`. It reads as a publishing mirror, not a repository that takes
+contributions. The web "Compare changes" page is the one surface that suggests
+otherwise.
+
+What was disproved along the way, so it is not re-derived: a fine-grained PAT
+cannot create a pull request **anywhere** (proved in a repo where it held
+`admin: true`), but a classic `public_repo` token **can** — it opened a PR in the
+fork without trouble. So the token was never the final blocker. Neither was the
+head repo's name or its fork status: a genuine fork named `adelvillar1/ZCode`,
+parent `zai-org/ZCode`, was built and the head resolved across the network
+(`ahead_by: 1`, 34 files) — and `POST /pulls` still 404ed.
+
+Everything else is finished and kept: the pack is verified 32/32 conform and
+32/32 byte-exact round-trip, the branch is built and pushed, and the PR body is
+written. Nothing here is wasted if a real contribution channel opens up.
+
 
 ## Repo facts (verified 2026-09-24)
 
