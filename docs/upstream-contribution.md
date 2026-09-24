@@ -232,6 +232,50 @@ there rather than quietly dropped.
   that ships green only because its directory is exempted would be a worse
   contribution than one that survived the repo's own rules.
 
+### Prepared state, and the one thing that is not done
+
+The PR is prepared to a single command and has **not** been opened — the
+current PAT cannot reach `zai-org/ZCode`:
+
+- `gh repo fork zai-org/ZCode --clone=false` → `HTTP 403: Resource not
+  accessible by personal access token` (re-tried; still 403).
+- Direct push to `zai-org/ZCode` is refused, and SSH push to it fails too.
+
+Both were checked rather than assumed, and neither is a repo-state problem:
+upstream `main` is at `29628c9` and the prepared branch is based on exactly
+that commit.
+
+The branch is already built and verified at `$TMPDIR/zcode-upstream-pr`
+(`contrib/workflow-pack`, commit `253b1e0`): add-only, 34 files, 24511
+insertions, 0 deletions, with `.prettierignore` the sole pre-existing file
+touched (+6 lines). Re-verified on that branch with the pinned binaries:
+`oxlint` exits 0 (70 warnings, 0 errors, 2648 files), `oxfmt --check` flags
+32 files with none inside `workflows/`, and `tools/verify-pack.mjs` reports
+32/32 conform and 32/32 byte-exact round-trip. A `diff -r` against
+`workflows/` shows the prepared pack is byte-identical to this repo's.
+
+Two pieces of tooling back this, both committed and pushed:
+
+- `tools/verify-pack.mjs` — the contract check described in
+  [Verification done on `workflows/`](#verification-done-on-workflows-2026-09-24),
+  runnable on any checkout. It resolves upstream's own `yaml` package (the
+  emitter the round-trip must match, so it cannot be substituted) from the
+  script's location, then a checkout given by `ZCODE_REF_CLONE`.
+- `bin/open-upstream-pr.sh` — the whole sequence in one idempotent command:
+  fork, clean clone of `main`, copy the pack, add the `.prettierignore`
+  entry, install the pin-matched gate tools, gate on lint plus the pack's
+  own checks, commit, push, open the PR with `docs/upstream-pr-workflow-pack.md`
+  as the body. A clean clone has no `node_modules`, which would have made
+  both gates vacuous, so it installs `yaml@^2.9.0 oxlint@1.57.0
+  oxfmt@0.41.0` — the versions every number in the PR body was measured
+  with — into a scratch prefix first. The whole gate sequence was dry-run on
+  a fresh clean clone with the pack applied and all three behaved as the PR
+  body claims.
+
+So the only remaining step is permission, not preparation: grant the PAT
+fork access on `zai-org/ZCode` and run `bin/open-upstream-pr.sh`, or open the
+PR by hand from the prepared branch using the body already in the repo.
+
 ## Candidate: the model router (not contributed)
 
 What: `router/server.js` — an OpenAI-compatible local proxy that routes each
