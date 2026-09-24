@@ -1,7 +1,8 @@
-# PR body: workflow pack (draft, ready to paste)
-
-Target: `zai-org/ZCode` · branch `contrib/workflow-pack`
-Title: `新增 workflows/：32 个保存的 dynamic workflow`
+<!-- PR body: workflow pack. Target: zai-org/ZCode, head adelvillar1:workflow-pack
+     (the branch is also pushed as contrib/workflow-pack).
+     Title: 新增 workflows/：32 个保存的 dynamic workflow
+     This block is an HTML comment so it stays invisible when this file is pasted
+     into the PR description, or passed to `gh pr create --body-file`. -->
 
 仓库 issues 已关闭，所以下面第 5 节的问题直接写在这里。
 
