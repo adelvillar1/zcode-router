@@ -227,6 +227,22 @@
       "adversarial-solve": {
         "taskArg": "task",
         "shape": "a problem with several plausible solutions — or one naming multiple approaches like A vs B, or asking to build/try more than one — where competing independent attempts and a judge picking the best beats one opinion"
+      },
+      "design-review": {
+        "taskArg": "target",
+        "shape": "a screen, view, or product surface needs a scored design audit — hierarchy, spacing, and anti-slop checks — with a prioritized fix plan rather than a vague impression"
+      },
+      "ui-implementation-review": {
+        "taskArg": "target",
+        "shape": "a frontend change needs a line-by-line implementation audit against a UI checklist — loading, empty, and error states, API-shape reads, dead styles, theme tokens — where every finding is confirmed before anyone acts on it"
+      },
+      "spec-compliance-review": {
+        "taskArg": "plan",
+        "shape": "work is claimed done against a written plan or spec and the question is whether every acceptance criterion actually holds, with the plan's own verification commands re-executed rather than trusted"
+      },
+      "ocr-code-review": {
+        "taskArg": "from",
+        "shape": "a wide range of files needs a uniform, coverage-checked review — every file accounted for and every finding confirmed — rather than a sampled read"
       }
     }
   },

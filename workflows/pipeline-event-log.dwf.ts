@@ -7,6 +7,7 @@ description: "Audits a workspace implementation against the pipeline-event-log
 whenToUse: When a pipeline implementation needs auditing against the
   pipeline-event-log pattern's verification checklist.
 */
+/* eslint-disable max-lines -- a saved workflow is one self-contained script by contract and cannot be split into modules to satisfy the repo line limit; see the workflows library README */
 // pipeline-event-log.ts
 // Dynamic workflow DRAFT: audit a workspace implementation of the pipeline-event-log pattern
 // against the skill's own Verification Checklist (CHECKLIST.length items, defined below).

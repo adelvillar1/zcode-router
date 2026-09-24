@@ -6,6 +6,7 @@ description: "Detects data drift: runs the drift checks, measures the drift with
 whenToUse: When data may have drifted from its source of truth and needs
   measurement, confirmation, and gated fixes.
 */
+/* eslint-disable max-lines -- a saved workflow is one self-contained script by contract and cannot be split into modules to satisfy the repo line limit; see the workflows library README */
 // data-drift-detection.ts
 // Dynamic workflow DRAFT: staging ↔ production data-drift detection, triage and fix routing.
 // Embodying /Users/alejandrodelvillar/.agents/skills/data-drift-detection/SKILL.md (288 lines).

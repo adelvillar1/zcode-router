@@ -23,6 +23,7 @@ args:
     description: Timezone for date handling.
     required: false
 */
+/* eslint-disable max-lines -- a saved workflow is one self-contained script by contract and cannot be split into modules to satisfy the repo line limit; see the workflows library README */
 
 // Weekly review and planning workflow.
 // Embodies the 7-step procedure (~/.agents/skills/weekly-review-planning/SKILL.md:30-56),
@@ -368,7 +369,6 @@ function usableKind(kind: string): boolean {
 }
 
 const calendarUsable = usableKind("calendar");
-const tasksUsable = usableKind("tasks");
 
 phase("Read the completed week and the planning horizon");
 

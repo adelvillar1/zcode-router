@@ -71,13 +71,6 @@ interface Finding {
   severity: "low" | "medium" | "high";
 }
 
-interface WorkflowReport {
-  conclusion: string;
-  findings: Finding[];
-  verified: string[];
-  notCovered: string[];
-}
-
 const topic = String(args.topic ?? "").trim() || "the topic";
 
 phase("Break the topic into angles");
@@ -106,7 +99,7 @@ const perAngle: { angle: string; summary: string; claims: Claim[] }[] = await Pr
       `Topic: ${topic}\nYour angle: ${a.question}\n\n` +
         "Research it. Return angle, summary, and up to 3 load-bearing claims with sources."
     );
-    const checked = await Promise.all(
+    await Promise.all(
       scoutReport.claims.slice(0, 2).map(async (claim, i) => {
         const checker = agent(`Checker for angle ${ai + 1} claim ${i + 1}`, {
           system:

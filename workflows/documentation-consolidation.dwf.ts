@@ -12,6 +12,7 @@ args:
     description: Commit or ref to consolidate documentation at; empty uses the working tree.
     required: false
 */
+/* eslint-disable max-lines -- a saved workflow is one self-contained script by contract and cannot be split into modules to satisfy the repo line limit; see the workflows library README */
 // Documentation-consolidation workflow
 // Embodies the doc audit + merge procedure from
 // ~/.agents/skills/documentation-consolidation/SKILL.md (9 core workflow steps,

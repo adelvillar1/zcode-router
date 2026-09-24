@@ -16,6 +16,7 @@ args:
     description: The question the comparison should answer.
     required: false
 */
+/* eslint-disable max-lines -- a saved workflow is one self-contained script by contract and cannot be split into modules to satisfy the repo line limit; see the workflows library README */
 // cross-env-data-comparison.ts
 // Dynamic workflow draft: cross-environment data comparison (staging vs production PostgreSQL).
 // Embodying /Users/alejandrodelvillar/.agents/skills/cross-env-data-comparison/SKILL.md (225 lines):

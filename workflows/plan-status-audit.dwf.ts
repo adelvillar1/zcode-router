@@ -7,6 +7,7 @@ description: "Audits existing plans: discovers candidate plans with
 whenToUse: When plan files need an evidence-based status audit and
   owner-approved status flips.
 */
+/* eslint-disable max-lines -- a saved workflow is one self-contained script by contract and cannot be split into modules to satisfy the repo line limit; see the workflows library README */
 // Dynamic-workflow script: plan-status-audit
 // Embodies the 6-step procedure (plus the §3.5 fast path) from
 // /Users/alejandrodelvillar/.agents/skills/plan-status-audit/SKILL.md — a 126-line file whose

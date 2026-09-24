@@ -56,13 +56,6 @@ interface Finding {
   severity: "low" | "medium" | "high";
 }
 
-interface WorkflowReport {
-  conclusion: string;
-  findings: Finding[];
-  verified: string[];
-  notCovered: string[];
-}
-
 const task = String(args.task ?? "").trim() || "Review the changed files.";
 const base = String(args.base ?? "").trim();
 

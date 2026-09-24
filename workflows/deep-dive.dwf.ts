@@ -61,13 +61,6 @@ interface Finding {
   severity: "low" | "medium" | "high";
 }
 
-interface WorkflowReport {
-  conclusion: string;
-  findings: Finding[];
-  verified: string[];
-  notCovered: string[];
-}
-
 const scope = String(args.scope ?? "").trim() || "this system";
 
 phase("Name the subsystems to explore");

@@ -20,6 +20,7 @@ args:
     description: Path to the git-history-project-retrospective skill dir holding scripts/.
     required: false
 */
+/* eslint-disable max-lines -- a saved workflow is one self-contained script by contract and cannot be split into modules to satisfy the repo line limit; see the workflows library README */
 // Dynamic-workflow draft — embodies ~/.agents/skills/git-history-project-retrospective/SKILL.md
 // (the 7-step git-history project retrospective).
 // Hybrid pattern: phases, fan-out, bounded loops, gates and the report live here; the fine

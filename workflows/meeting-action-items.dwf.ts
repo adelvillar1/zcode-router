@@ -23,6 +23,7 @@ args:
     description: Tracker project/repo target.
     required: false
 */
+/* eslint-disable max-lines -- a saved workflow is one self-contained script by contract and cannot be split into modules to satisfy the repo line limit; see the workflows library README */
 // Dynamic-workflow draft: meeting-action-items
 // Embodies the 6-step procedure in ~/.agents/skills/meeting-action-items/SKILL.md
 // (on disk the procedure sits at SKILL.md:29-71): establish meeting evidence →

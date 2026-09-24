@@ -8,6 +8,7 @@ description: "Writes a session recap: walks the session's git evidence and areas
 whenToUse: When a session's work should be written up as a structured recap in
   the skills' template format.
 */
+/* eslint-disable max-lines -- a saved workflow is one self-contained script by contract and cannot be split into modules to satisfy the repo line limit; see the workflows library README */
 // Dynamic-workflow script: write-session-recap
 // Embodies the procedure in /Users/alejandrodelvillar/.agents/skills/write-session-recap/SKILL.md
 // (template: /Users/alejandrodelvillar/.agents/skills/write-session-recap/templates/recap.md.template).

@@ -45,13 +45,6 @@ interface Finding {
   severity: "low" | "medium" | "high";
 }
 
-interface WorkflowReport {
-  conclusion: string;
-  findings: Finding[];
-  verified: string[];
-  notCovered: string[];
-}
-
 const target = String(args.target ?? "").trim() || "the codebase";
 
 phase("Find the missing tests in each area");

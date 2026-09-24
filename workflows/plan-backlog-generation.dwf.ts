@@ -11,6 +11,7 @@ args:
     description: Scope to build the backlog from.
     required: false
 */
+/* eslint-disable max-lines -- a saved workflow is one self-contained script by contract and cannot be split into modules to satisfy the repo line limit; see the workflows library README */
 // Dynamic-workflow script: plan-backlog-generation
 // Embodies "The 4-phase workflow" from ~/.agents/skills/plan-backlog-generation/SKILL.md:34-107
 // (the skill is 181 lines by wc -l; the ask's cited 379-453 do not exist — the real sections

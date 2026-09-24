@@ -74,13 +74,6 @@ interface Finding {
   severity: "low" | "medium" | "high";
 }
 
-interface WorkflowReport {
-  conclusion: string;
-  findings: Finding[];
-  verified: string[];
-  notCovered: string[];
-}
-
 const incident = String(args.incident ?? "").trim() || "An incident occurred.";
 
 phase("Name the evidence sources");

@@ -70,13 +70,6 @@ interface Finding {
   severity: "low" | "medium" | "high";
 }
 
-interface WorkflowReport {
-  conclusion: string;
-  findings: Finding[];
-  verified: string[];
-  notCovered: string[];
-}
-
 const task = String(args.task ?? "").trim() || "Solve the problem.";
 
 phase("Name the competing approaches");

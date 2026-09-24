@@ -25,6 +25,7 @@ args:
     description: Staging endpoint to verify against, when one exists.
     required: false
 */
+/* eslint-disable max-lines -- a saved workflow is one self-contained script by contract and cannot be split into modules to satisfy the repo line limit; see the workflows library README */
 
 // Data-triage workflow
 // Embodies the 10-step data-triage procedure from

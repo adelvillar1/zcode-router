@@ -60,21 +60,6 @@ interface ReaderNotes {
   issues: string[];
 }
 
-interface Finding {
-  where: string;
-  what: string;
-  evidence: string;
-  status: "verified" | "unconfirmed";
-  severity: "low" | "medium" | "high";
-}
-
-interface WorkflowReport {
-  conclusion: string;
-  findings: Finding[];
-  verified: string[];
-  notCovered: string[];
-}
-
 const question = String(args.question ?? "").trim() || "Which option is best?";
 
 phase("Name the options");

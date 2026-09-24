@@ -14,6 +14,7 @@ args:
     description: The regression claim to verify (e.g. 'the new CSS broke the pricing page').
     required: true
 */
+/* eslint-disable max-lines -- a saved workflow is one self-contained script by contract and cannot be split into modules to satisfy the repo line limit; see the workflows library README */
 // Dynamic-workflow script: regression-claim-verification
 // Embodies the 13-step procedure from ~/.agents/skills/regression-claim-verification/SKILL.md
 // Hybrid pattern: structure (phases, fan-out, bounded loops, WorkflowReport) lives in

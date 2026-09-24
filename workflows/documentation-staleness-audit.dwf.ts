@@ -7,6 +7,7 @@ description: "Audits documentation staleness: inventories docs, checks each
 whenToUse: When a docs tree needs a staleness audit — which pages lie about the
   code, with confirmed findings and open decisions surfaced.
 */
+/* eslint-disable max-lines -- a saved workflow is one self-contained script by contract and cannot be split into modules to satisfy the repo line limit; see the workflows library README */
 // Dynamic-workflow script: documentation-staleness-audit
 // Embodies the 8-step procedure from ~/.agents/skills/documentation-staleness-audit/SKILL.md
 // ("5-phase methodology": steps 1-4 are the four numbered items of Phase 1 — inventory,

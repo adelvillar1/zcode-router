@@ -20,6 +20,7 @@ args:
     description: Guidance for drafted replies.
     required: false
 */
+/* eslint-disable max-lines -- a saved workflow is one self-contained script by contract and cannot be split into modules to satisfy the repo line limit; see the workflows library README */
 
 // Email inbox triage workflow.
 // Embodies the 6-step procedure (~/.agents/skills/email-inbox-triage/SKILL.md:30-63),

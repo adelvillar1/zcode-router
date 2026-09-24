@@ -21,6 +21,7 @@ args:
     required: false
     default: false
 */
+/* eslint-disable max-lines -- a saved workflow is one self-contained script by contract and cannot be split into modules to satisfy the repo line limit; see the workflows library README */
 // production-sync-procedure.dwf.ts
 // Dynamic workflow: Staging → Production sync for Cruising Intelligence
 // Embodying ~/.agents/skills/production-sync-procedure/SKILL.md (34-step runbook)

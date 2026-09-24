@@ -57,13 +57,6 @@ interface Finding {
   severity: "low" | "medium" | "high";
 }
 
-interface WorkflowReport {
-  conclusion: string;
-  findings: Finding[];
-  verified: string[];
-  notCovered: string[];
-}
-
 const brief = String(args.brief ?? "").trim() || "Write something.";
 
 phase("Shape the outline");

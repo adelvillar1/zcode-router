@@ -24,6 +24,7 @@ args:
     description: Timezone for date handling.
     required: false
 */
+/* eslint-disable max-lines -- a saved workflow is one self-contained script by contract and cannot be split into modules to satisfy the repo line limit; see the workflows library README */
 // Dynamic-workflow draft — embodies ~/.agents/skills/git-history-analytics/SKILL.md (103 lines).
 // Hybrid pattern: phases, fan-out, bounded loops and deterministic gates live here; the fine
 // detail (dimension recipes, the maturity table, the anchored bucket patterns, the pitfalls)

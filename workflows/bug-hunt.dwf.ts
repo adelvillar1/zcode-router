@@ -59,13 +59,6 @@ interface Finding {
   severity: "low" | "medium" | "high";
 }
 
-interface WorkflowReport {
-  conclusion: string;
-  findings: Finding[];
-  verified: string[];
-  notCovered: string[];
-}
-
 const symptom = String(args.symptom ?? "").trim() || "Something is broken.";
 
 phase("List the plausible causes");
