@@ -16,7 +16,8 @@ roster.json ──kit apply──┬── ~/.zcode/router/config.json      tier
 
 Requires Node ≥ 18 and nothing else. The router itself additionally needs
 one npm dependency (`@typesafe-ai/sdk`), installed by `kit apply` into the
-runtime dir when missing.
+runtime dir when missing — that package is the judge that picks the workload,
+the execution style, and the workflow for every `auto` request.
 
 ## What you get
 
@@ -121,6 +122,13 @@ input formats:
 ]
 ```
 
+**The judge** — `typesafe` controls the TypeSafe model that decides every
+`auto` request (see [The judge is TypeSafe](#how-the-router-decides)):
+
+```json
+"typesafe": { "apiKeyEnv": "TYPESAFE_API_KEY", "model": "jev-1.13.0", "ttlHours": 6 }
+```
+
 **Tiers** — workload → model, with fallbacks for machines that lack a plan:
 
 ```json
@@ -167,9 +175,8 @@ metadata when omitted):
 
 ## How the router decides
 
-For an `auto` request the router makes **one TypeSafe judgment per task**,
-cached per session on the system prompt plus your latest instruction — so an
-agentic tool loop keeps its model until you say something new. The judge
+For an `auto` request the router makes **one judgment per task** — cached, so
+an agentic tool loop keeps its model until you say something new. The judge
 answers four questions at once, each gated over its own option space with its
 own confidence threshold, so a weak pick in one cannot wipe a strong pick in
 another:
@@ -180,6 +187,31 @@ another:
 | `execution` | `single` / `mixture` / `swarm` |
 | `workflow` | which saved workflow runs **first** (or none) |
 | `followUp` | which **second** workflow runs after it (or none) |
+
+**The judge is TypeSafe.** The decisions come from a TypeSafe Jev model reached
+through the `@typesafe-ai/sdk` client — the same integration the
+commissiontracker app uses, not local heuristics. Two distinct judgments exist.
+The *task* judgment (4s timeout, no retries) sends only a compact state — your
+latest instruction plus counters: message count, approximate input tokens,
+attached images, tool definitions — and never the conversation or your files.
+The *proposal* judgment (6s) runs only inside a mixture, asking which of the
+parallel answers is best and whether merging them would beat the best one alone.
+
+Every judgment is fail-open. A missing key, a thrown error, or confidence below
+threshold each degrade to `defaultWorkload` as a single call, tagged in the log
+as `judge:no-key`, `judge:error:…`, or `judge:low-confidence`. A TypeSafe outage
+makes routing slower or lazier; it never fails a request.
+
+```json
+"typesafe": { "apiKeyEnv": "TYPESAFE_API_KEY", "model": "jev-1.13.0", "ttlHours": 6 }
+```
+
+`apiKeyEnv` names the variable in `~/.zcode/router/.env` holding the key — the
+key itself is never in the roster or in git. `model` is the judging model, and
+`ttlHours` is how long a judgment is reused: it is cached per session, keyed on
+a hash of the system prompt head plus your latest instruction, so an agentic
+tool loop keeps one verdict across dozens of tool round-trips and the cache
+(400 sessions, oldest evicted) cannot grow without bound.
 
 Capability rules are checked before any judgment and always win: a request
 carrying images goes to `omniModel`, and one wider than `wideChars` goes to
