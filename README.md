@@ -34,10 +34,14 @@ runtime dir when missing.
   Registering one for the picker is still allowed; billing it as the router's
   default is not.
 - **Router-decided delegation** — the router (one TypeSafe judgment per task,
-  cached) picks the workload, the execution style (single / mixture / swarm),
-  and which saved workflows run, in what order. The workflow registry is
-  generated from the library's own `zcode-workflow` metadata blocks, so the
-  library and the registry can never drift.
+  cached) picks the workload, the execution style, and which saved workflows
+  run, in what order. It answers three questions per task: run it as one call,
+  as a **mixture of agents** (parallel proposers from different plan pools,
+  judged, merged only when merging adds value), or as a **swarm** — a
+  decomposed multi-agent run with review rounds, chosen from a library that
+  includes swarm, adversarial-solve, bug-hunt, and review-sweep. The workflow
+  registry is generated from the library's own `zcode-workflow` metadata
+  blocks, so the library and the registry can never drift.
 - **A workflow library** — the saved dynamic workflows in `workflows/`,
   installed into `~/.zcode/workflows/` without ever deleting files the user
   added locally.
@@ -142,8 +146,9 @@ overwrites, since live state records only where each tier resolved to.
 A provider marked `"billing": "payg"` is refused as a target unless you set
 `allowPayg: true` — the router must not quietly start costing per-token money.
 
-**Delegation** — picker profiles map onto tiers; `mixture` fans a hard task
-out to several proposers with a judge that integrates when merging adds value:
+**Delegation** — picker profiles map onto tiers, and `mixture` fans a hard task
+out to several proposers with a judge that integrates when merging adds value
+(see [How the router decides](#how-the-router-decides)):
 
 ```json
 "profiles": { "quick": { "workload": "quick" }, "vision": { "use": "omniModel" }, "mixture": { "use": "mixture" } },
@@ -159,6 +164,77 @@ metadata when omitted):
 "workflows": { "shapes": { "swarm": "a large task that decomposes into several substantial independent parts…" },
                "registry": { "review-sweep": { "taskArg": "task", "defaults": { "base": "" } } } }
 ```
+
+## How the router decides
+
+For an `auto` request the router makes **one TypeSafe judgment per task**,
+cached per session on the system prompt plus your latest instruction — so an
+agentic tool loop keeps its model until you say something new. The judge
+answers four questions at once, each gated over its own option space with its
+own confidence threshold, so a weak pick in one cannot wipe a strong pick in
+another:
+
+| question | decides |
+| --- | --- |
+| `workload` | which tier: `quick` / `standard_code` / `hard` / `prose` / `deep_context` |
+| `execution` | `single` / `mixture` / `swarm` |
+| `workflow` | which saved workflow runs **first** (or none) |
+| `followUp` | which **second** workflow runs after it (or none) |
+
+Capability rules are checked before any judgment and always win: a request
+carrying images goes to `omniModel`, and one wider than `wideChars` goes to
+`wideModel`. A text-only target cannot take an image, and a small-context model
+cannot swallow a million characters.
+
+**`single`** — one focused model call to the tier's target. The default for
+ordinary work.
+
+**`mixture` — mixture of agents.** For one hard question that does *not*
+decompose into separate parts, the router fans the request out to
+`mixture.proposers` in parallel, drawn from different plan pools and model
+families so the answers actually differ. A TypeSafe judgment then picks the best
+answer *and* decides whether merging adds value; `mixture.aggregator` runs only
+when the judge says integration is warranted, so you never pay for a merge that
+would average three answers into one mediocre one. Turns that carry tool
+definitions skip mixture entirely — parallel proposals cannot be merged when
+the turn is choosing tool calls mid-loop — and fall back to the hard tier,
+logged as `+mixture-skipped-tools`.
+
+**`swarm`** — the judge decided the request decomposes into several substantial
+independent parts, or that quality depends on critique rounds. The router marks
+the response `x-router-execution: swarm` and names the workflow to run; when
+two stages are needed (first find the cause, then review the fix) it also names
+a second workflow and hands it a stage-scoped prompt built from the first
+stage's deliverable. The multi-agent execution itself lives in the workflow
+library — which is why the library ships with the kit rather than beside it.
+
+The library's fan-out workflows: `swarm` (decompose, build, review),
+`adversarial-solve` (several plausible solutions argue, then get judged),
+`bug-hunt` (root-cause something broken, without fixing it), `review-sweep`
+(changes whose findings get confirmed before anyone acts), `deep-dive`,
+`decision-memo`, `data-triage`, `regression-claim-verification`,
+`coverage-push`, `migration`, `plan-backlog-generation`, `postmortem`. Of the
+28 workflows in `workflows/`, 15 are assignable by the router; the rest take
+structured arguments rather than a task and stay hand-launched.
+
+**Asking the router directly** — `POST /route` (local token) returns the same
+verdict without calling any model:
+
+```json
+{ "workload": "hard", "execution": "swarm", "target": null,
+  "assignments": [{ "name": "swarm", "args": { "task": "…" } }],
+  "assignment": { "name": "swarm", "args": { "task": "…" } },
+  "conf": 0.82, "wfConf": 0.77, "reason": "judge" }
+```
+
+`target` is `null` on a mixture verdict (the caller does the fan-out);
+`assignments` names the workflows in order. `kit route "…"` wraps the endpoint
+for the shell.
+
+Every response carries `x-router-execution`, `x-router-workload`, and
+`x-router-workflow` headers, and the router logs `route`, `route-verdict`, and
+`mixture` events to `logs/router.log` — so an unusual or degraded decision is
+always visible after the fact.
 
 ## Adding a workflow
 
