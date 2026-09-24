@@ -1,0 +1,17 @@
+{
+  "name": "zcode-router-kit",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Installable, config-controlled model routing and workflow delegation for ZCode",
+  "type": "module",
+  "bin": {
+    "zcode-router-kit": "bin/zcode-router-kit.mjs",
+    "kit": "bin/zcode-router-kit.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "kit": "node bin/zcode-router-kit.mjs"
+  }
+}

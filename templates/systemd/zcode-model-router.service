@@ -1,0 +1,14 @@
+[Unit]
+Description=ZCode local model router
+After=network.target
+
+[Service]
+Type=simple
+# kit apply rewrites WorkingDirectory/ExecStart with this machine's paths.
+WorkingDirectory=/home/USER/.zcode/router
+ExecStart=/usr/bin/node /home/USER/.zcode/router/server.js
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target

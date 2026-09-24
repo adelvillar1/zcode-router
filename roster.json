@@ -1,0 +1,268 @@
+{
+  "version": 1,
+  "exportedFrom": {
+    "providerConfigPath": "/Users/alejandrodelvillar/.zcode/v2/provider_config.json",
+    "routerConfigPath": "/Users/alejandrodelvillar/.zcode/router/config.json",
+    "workflowsDir": "/Users/alejandrodelvillar/.zcode/workflows",
+    "at": "2026-09-24T10:33:39.609Z"
+  },
+  "router": {
+    "port": 8300,
+    "localToken": "local-auto-router"
+  },
+  "typesafe": {
+    "apiKeyEnv": "TYPESAFE_API_KEY",
+    "model": "jev-1.13.0",
+    "ttlHours": 6
+  },
+  "allowPayg": false,
+  "providers": {
+    "deepseek": {
+      "providerName": "DeepSeek",
+      "templateId": "deepseek",
+      "apiKeyEnv": "DEEPSEEK_API_KEY",
+      "billing": "payg",
+      "models": [
+        "deepseek-flash",
+        "deepseek-v4-pro"
+      ],
+      "featured": []
+    },
+    "xiaomi-mimo": {
+      "providerName": "Xiaomi MiMo",
+      "templateId": "xiaomi-mimo",
+      "baseUrl": "https://token-plan-sgp.xiaomimimo.com/v1",
+      "apiKeyEnv": "XIAOMI_MIMO_API_KEY",
+      "billing": "plan",
+      "models": [
+        "mimo-v2.6-pro",
+        "mimo-v2.6-flash",
+        "mimo-v2.5-pro",
+        "mimo-v2.5"
+      ],
+      "featured": [
+        "mimo-v2.6-pro",
+        "mimo-v2.6-flash"
+      ]
+    },
+    "token-plan": {
+      "providerName": "Token Plan (Alibaba)",
+      "baseUrl": "https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode/v1",
+      "apiKeyEnv": "TOKEN_PLAN_API_KEY",
+      "billing": "plan",
+      "models": [
+        "qwen3.8-flash"
+      ],
+      "featured": [
+        "qwen3.8-flash"
+      ]
+    },
+    "stepfun": {
+      "providerName": "StepFun Step Plan",
+      "baseUrl": "https://api.stepfun.ai/step_plan/v1",
+      "apiKeyEnv": "STEPFUN_API_KEY",
+      "billing": "plan",
+      "models": [
+        "step-3.7-flash",
+        "step-3.5-flash",
+        "step-3.5-flash-2603",
+        "step-5-preview"
+      ],
+      "featured": [
+        "step-3.7-flash",
+        "step-3.5-flash",
+        "step-3.5-flash-2603",
+        "step-5-preview"
+      ]
+    },
+    "zai-coding-plan": {
+      "providerName": "Zai Coding Plan",
+      "baseUrl": "https://api.z.ai/api/coding/paas/v4",
+      "apiKeyEnv": "ZAI_CODING_API_KEY",
+      "billing": "plan",
+      "routerOnly": true,
+      "models": []
+    }
+  },
+  "omniModel": "xiaomi-mimo/mimo-v2.6-pro",
+  "wideModel": "xiaomi-mimo/mimo-v2.6-pro",
+  "tiers": {
+    "quick": {
+      "target": "token-plan/qwen3.8-flash",
+      "fallbacks": []
+    },
+    "standard_code": {
+      "target": "stepfun/step-3.7-flash",
+      "fallbacks": []
+    },
+    "hard": {
+      "target": "zai-coding-plan/GLM-5.3-Flash",
+      "fallbacks": []
+    },
+    "prose": {
+      "target": "xiaomi-mimo/mimo-v2.6-flash",
+      "fallbacks": []
+    },
+    "deep_context": {
+      "target": "xiaomi-mimo/mimo-v2.6-pro",
+      "fallbacks": []
+    }
+  },
+  "profiles": {
+    "quick": {
+      "workload": "quick"
+    },
+    "code": {
+      "workload": "standard_code"
+    },
+    "hard": {
+      "workload": "hard"
+    },
+    "prose": {
+      "workload": "prose"
+    },
+    "long-context": {
+      "workload": "deep_context"
+    },
+    "vision": {
+      "use": "omniModel"
+    },
+    "mixture": {
+      "use": "mixture"
+    }
+  },
+  "mixture": {
+    "proposers": [
+      "zai-coding-plan/GLM-5.3-Flash",
+      "xiaomi-mimo/mimo-v2.6-pro",
+      "stepfun/step-5-preview"
+    ],
+    "aggregator": "zai-coding-plan/GLM-5.3-Flash",
+    "proposerTimeoutMs": 240000
+  },
+  "routing": {
+    "wideChars": 1000000,
+    "minConfidence": 0.6,
+    "workflowMinConfidence": 0.4,
+    "defaultWorkload": "standard_code"
+  },
+  "workflows": {
+    "shapes": {
+      "cross-env-data-comparison": "comparing the same data across environments \u2014 staging vs production, or two datasets \u2014 where counts must be reproduced independently and access stays read-only",
+      "data-triage": "data is wrong or a data-shaped bug needs reproducing, root-causing, and confirming against the source of truth",
+      "plan-backlog-generation": "a scope of work needs a structured plan backlog with sequenced, committable steps",
+      "regression-claim-verification": "someone claims a regression and the question is whether the evidence supports it before anything is reverted"
+    },
+    "registry": {
+      "swarm": {
+        "taskArg": "task",
+        "shape": "a large task that decomposes into several substantial independent parts \u2014 build or analyze something big where parallel builders with reviews and an integrated deliverable win"
+      },
+      "review-sweep": {
+        "taskArg": "task",
+        "shape": "reviewing changes \u2014 a diff, a PR, or modified files \u2014 where findings must be confirmed before anyone acts on them",
+        "defaults": {
+          "base": ""
+        }
+      },
+      "bug-hunt": {
+        "taskArg": "symptom",
+        "shape": "something is broken or misbehaving and the request is to find the root cause, not to fix it yet"
+      },
+      "migration": {
+        "taskArg": "task",
+        "shape": "moving code from one approach, library, or pattern to another across a repository"
+      },
+      "research-report": {
+        "taskArg": "topic",
+        "shape": "researching a topic and producing a written report or state-of-the-landscape with sources"
+      },
+      "deep-dive": {
+        "taskArg": "scope",
+        "shape": "understanding, explaining, or assessing how a system works \u2014 architecture questions, onboarding, improvement shortlists"
+      },
+      "coverage-push": {
+        "taskArg": "target",
+        "shape": "adding tests or improving test coverage for a module or a codebase"
+      },
+      "content-production": {
+        "taskArg": "brief",
+        "shape": "producing written content from a brief \u2014 a report, article, deck content, or long-form document"
+      },
+      "decision-memo": {
+        "taskArg": "question",
+        "shape": "a decision between plausible options \u2014 architecture choices, build-vs-buy, strategy calls \u2014 where the user wants a reasoned recommendation"
+      },
+      "postmortem": {
+        "taskArg": "incident",
+        "shape": "an incident, outage, or data problem happened and the request is to understand and write up what occurred and why"
+      },
+      "adversarial-solve": {
+        "taskArg": "task",
+        "shape": "a problem with several plausible solutions \u2014 or one naming multiple approaches like A vs B, or asking to build/try more than one \u2014 where competing independent attempts and a judge picking the best beats one opinion"
+      }
+    }
+  },
+  "manualModelRules": [
+    {
+      "modelId": "mimo-v2.6-pro",
+      "config": {
+        "enabled": true,
+        "properties": {
+          "contextWindow": 1000000,
+          "supportsJsonSchemaOutput": false,
+          "supportsNativeWebSearch": false,
+          "supportsMidConversationSystem": false,
+          "inputFormat": {
+            "supportsImage": true,
+            "supportsVideo": true,
+            "supportsPdf": false
+          }
+        },
+        "optionSpecs": {
+          "reasoningLevel": {
+            "values": [
+              "disabled",
+              "enabled"
+            ],
+            "map": "{\n  \"thinking\": {\n    \"type\": reasoningLevel == \"enabled\" ? \"enabled\" : \"disabled\"\n  }\n}"
+          },
+          "maxOutputTokens": {
+            "max": 131072
+          }
+        }
+      },
+      "providerId": "xiaomi-mimo"
+    },
+    {
+      "modelId": "mimo-v2.6-flash",
+      "config": {
+        "enabled": true,
+        "properties": {
+          "contextWindow": 1000000,
+          "supportsJsonSchemaOutput": false,
+          "supportsNativeWebSearch": false,
+          "supportsMidConversationSystem": false,
+          "inputFormat": {
+            "supportsImage": true,
+            "supportsVideo": true,
+            "supportsPdf": false
+          }
+        },
+        "optionSpecs": {
+          "reasoningLevel": {
+            "values": [
+              "disabled",
+              "enabled"
+            ],
+            "map": "{\n  \"thinking\": {\n    \"type\": reasoningLevel == \"enabled\" ? \"enabled\" : \"disabled\"\n  }\n}"
+          },
+          "maxOutputTokens": {
+            "max": 131072
+          }
+        }
+      },
+      "providerId": "xiaomi-mimo"
+    }
+  ]
+}
