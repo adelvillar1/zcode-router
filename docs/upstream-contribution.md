@@ -254,8 +254,22 @@ history rather than being an unrelated tree.
 
 **Why the fork path was abandoned.** `gh repo fork zai-org/ZCode` fails with
 `HTTP 403: Resource not accessible by personal access token`, and a direct
-SSH push to `zai-org/ZCode` is refused. The decisive measurement is the
-response header on any API call against that repo:
+SSH push to `zai-org/ZCode` is refused. The repo itself does not object:
+`private: false`, `allow_forking: true`, `fork: false`, and permissions
+`pull: true, push: false` — being public is not what blocks this. The token
+does. Two controlled measurements say so:
+
+- **The fork block is token-wide, not specific to ZCode.** Forking
+  `octocat/Hello-World` — an unrelated public repo — returns the identical
+  403. A fine-grained PAT scoped to a list of repos cannot fork anything.
+- **The PR block is the base repo's permission, not the head.** An earlier
+  version of this file blamed the head repo being unreadable, and that was
+  wrong. The test that settles it: `POST /repos/zai-org/ZCode/pulls` with a
+  head branch that lives in a repo the token *can* read and push, and a base
+  branch that does not exist. A bad base would normally produce a 422
+  "base not found" and no PR; the call returns 403 instead. So GitHub refuses
+  before it ever reaches the head, and the refusal is the token's grant on
+  `zai-org/ZCode`, reported as:
 
 ```
 X-Accepted-Github-Permissions: metadata=read
@@ -263,9 +277,11 @@ X-Accepted-Github-Permissions: metadata=read
 
 The PAT holds only `metadata=read` there. It can read the repo, which is why
 the reads in this document work, and it can do nothing else — no commits, no
-branches, and no pull requests. No amount of local git work changes that;
-`POST /repos/zai-org/ZCode/pulls` returns 403 regardless of how correct the
-head is. A fork is not special here, it is the same permission wall.
+branches, and no pull requests. No amount of local git work changes that. A
+browser session is the way past it, because the account itself has
+permissions the token was never granted: public means anyone may fork and
+open a pull request *as a user*, which is not the same as this token being
+allowed to.
 
 **The one click.** Open this in a browser logged in as `adelvillar1`:
 
@@ -278,6 +294,13 @@ the account's real permissions rather than the PAT's. The PR body is
 `docs/upstream-pr-workflow-pack.md` in this repo, ready to paste into the
 description. The head repo is private, which GitHub permits for a PR into a
 public repo; the PR itself will be public.
+
+One route that does *not* work, recorded so it is not tried again: moving the
+head branch into a repo the token can write (the kit itself, for instance) so
+that `POST /repos/zai-org/ZCode/pulls` sees a readable head. The probe above
+already answers this — GitHub refuses on the base before it looks at the head,
+so a readable head changes nothing, and the cost is pushing a second copy of
+upstream's 38 MB of history into that repo.
 
 Everything around that click is verified and pushed. Re-verified on the
 branch with the pinned binaries: `oxlint` exits 0 (70 warnings, 0 errors),
