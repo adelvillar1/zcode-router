@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="640" viewBox="0 0 1080 640" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#58a6ff"/>
+    </marker>
+    <marker id="ahw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#d29922"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1080" height="640" rx="12" fill="#0d1117"/>
+  <text x="28" y="36" font-size="16" font-weight="600" fill="#e6edf3">One roster, rendered everywhere</text>
+  <text x="28" y="56" font-size="11" fill="#8b949e">kit apply is the only writer · the dashboard edits the roster, then re-runs it</text>
+
+  <text x="30" y="92" font-size="10" letter-spacing="1.5" fill="#8b949e">YOU EDIT</text>
+  <text x="372" y="92" font-size="10" letter-spacing="1.5" fill="#8b949e">GATEWAY</text>
+  <text x="530" y="92" font-size="10" letter-spacing="1.5" fill="#8b949e">RENDERED + INSTALLED</text>
+  <text x="830" y="92" font-size="10" letter-spacing="1.5" fill="#8b949e">RUNTIME</text>
+
+  <!-- column 1: sources -->
+  <rect x="30" y="102" width="300" height="112" rx="8" fill="#161b22" stroke="#2a313c"/>
+  <text x="44" y="124" font-size="12" fill="#e6edf3" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">roster.json</text>
+  <text x="44" y="142" font-size="10.5" fill="#8b949e">tiers · ordered fallback chains</text>
+  <text x="44" y="158" font-size="10.5" fill="#8b949e">providers · billing · keys by env name</text>
+  <text x="44" y="174" font-size="10.5" fill="#8b949e">profiles · thinking · strength</text>
+  <text x="44" y="190" font-size="10.5" fill="#8b949e">quota declarations · workflow registry</text>
+  <text x="44" y="206" font-size="10.5" fill="#6e7681">(gitignored — never contains keys)</text>
+
+  <rect x="30" y="228" width="300" height="52" rx="8" fill="#161b22" stroke="#2a313c"/>
+  <text x="44" y="250" font-size="12" fill="#e6edf3" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">router/.env</text>
+  <text x="44" y="268" font-size="10.5" fill="#8b949e">TYPESAFE_API_KEY · plan keys · chmod 600</text>
+
+  <rect x="30" y="294" width="300" height="68" rx="8" fill="#161b22" stroke="#2a313c"/>
+  <text x="44" y="316" font-size="12" fill="#e6edf3" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">workflows/ library</text>
+  <text x="44" y="334" font-size="10.5" fill="#8b949e">32 saved .dwf.ts · each with a</text>
+  <text x="44" y="350" font-size="10.5" fill="#8b949e">zcode-workflow metadata block</text>
+
+  <!-- gateway -->
+  <rect x="376" y="196" width="132" height="100" rx="10" fill="#10192b" stroke="#4f8cc9"/>
+  <text x="442" y="224" font-size="13" font-weight="600" fill="#58a6ff" text-anchor="middle">kit apply</text>
+  <text x="442" y="244" font-size="10" fill="#8b949e" text-anchor="middle">validate · render</text>
+  <text x="442" y="258" font-size="10" fill="#8b949e" text-anchor="middle">install · restart</text>
+  <text x="442" y="272" font-size="10" fill="#8b949e" text-anchor="middle">health-check</text>
+  <text x="442" y="288" font-size="9.5" fill="#6e7681" text-anchor="middle">idempotent</text>
+
+  <!-- column 2: rendered -->
+  <rect x="546" y="102" width="254" height="66" rx="8" fill="#161b22" stroke="#2a313c"/>
+  <text x="560" y="124" font-size="12" fill="#e6edf3" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">router/config.json</text>
+  <text x="560" y="142" font-size="10.5" fill="#8b949e">tier chains · quota · failover</text>
+  <text x="560" y="158" font-size="10.5" fill="#8b949e">thinkingStyles · workflow registry</text>
+
+  <rect x="546" y="182" width="254" height="52" rx="8" fill="#161b22" stroke="#2a313c"/>
+  <text x="560" y="204" font-size="12" fill="#e6edf3" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">v2/provider_config.json</text>
+  <text x="560" y="222" font-size="10.5" fill="#8b949e">the providers ZCode's picker shows</text>
+
+  <rect x="546" y="248" width="254" height="52" rx="8" fill="#161b22" stroke="#2a313c"/>
+  <text x="560" y="270" font-size="12" fill="#e6edf3" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">~/.zcode/workflows/*.dwf.ts</text>
+  <text x="560" y="288" font-size="10.5" fill="#8b949e">the delegation library ZCode runs</text>
+
+  <rect x="546" y="314" width="254" height="52" rx="8" fill="#161b22" stroke="#2a313c"/>
+  <text x="560" y="336" font-size="12" fill="#e6edf3" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">launchd / systemd unit</text>
+  <text x="560" y="354" font-size="10.5" fill="#8b949e">com.zcode.model-router · keepalive</text>
+
+  <!-- column 3: runtime -->
+  <rect x="846" y="102" width="210" height="60" rx="8" fill="#161b22" stroke="#2a313c"/>
+  <text x="860" y="124" font-size="12" fill="#e6edf3">ZCode · model picker</text>
+  <text x="860" y="142" font-size="10.5" fill="#8b949e">auto · deep · bulk · mixture · …</text>
+
+  <rect x="846" y="176" width="210" height="142" rx="8" fill="#10192b" stroke="#4f8cc9"/>
+  <text x="860" y="198" font-size="12" fill="#e6edf3" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">router · 127.0.0.1:8300</text>
+  <text x="860" y="218" font-size="10.5" fill="#8b949e">judge (TypeSafe): workload ·</text>
+  <text x="860" y="234" font-size="10.5" fill="#8b949e">execution · workflow · followUp</text>
+  <text x="860" y="250" font-size="10.5" fill="#8b949e">quota steering · runtime failover</text>
+  <text x="860" y="266" font-size="10.5" fill="#8b949e">mixture: proposers → judge</text>
+  <text x="860" y="282" font-size="10.5" fill="#8b949e">thinking policy: auto/off/deep</text>
+  <text x="860" y="298" font-size="10.5" fill="#8b949e">usage ledger ← SSE tap</text>
+
+  <rect x="846" y="346" width="210" height="86" rx="8" fill="#161b22" stroke="#2a313c"/>
+  <text x="860" y="368" font-size="12" fill="#e6edf3">upstreams — prepaid plans</text>
+  <text x="860" y="386" font-size="10.5" fill="#8b949e">token-plan · stepfun · mimo</text>
+  <text x="860" y="402" font-size="10.5" fill="#8b949e">zai-coding-plan (GLM)</text>
+  <text x="860" y="418" font-size="10.5" fill="#f85149">deepseek — payg · picker only</text>
+
+  <rect x="846" y="446" width="210" height="52" rx="8" fill="#161b22" stroke="#2a313c"/>
+  <text x="860" y="468" font-size="12" fill="#e6edf3">dashboard · /dashboard</text>
+  <text x="860" y="486" font-size="10.5" fill="#8b949e">usage · delegation · suggestions</text>
+
+  <!-- arrows col1 -> gateway -->
+  <line x1="330" y1="180" x2="376" y2="222" stroke="#58a6ff" stroke-width="1.2" marker-end="url(#ah)"/>
+  <line x1="330" y1="254" x2="376" y2="248" stroke="#58a6ff" stroke-width="1.2" marker-end="url(#ah)"/>
+  <line x1="330" y1="328" x2="376" y2="272" stroke="#58a6ff" stroke-width="1.2" marker-end="url(#ah)"/>
+
+  <!-- arrows gateway -> col2 -->
+  <line x1="508" y1="196" x2="546" y2="138" stroke="#58a6ff" stroke-width="1.2" marker-end="url(#ah)"/>
+  <line x1="508" y1="230" x2="546" y2="210" stroke="#58a6ff" stroke-width="1.2" marker-end="url(#ah)"/>
+  <line x1="508" y1="262" x2="546" y2="276" stroke="#58a6ff" stroke-width="1.2" marker-end="url(#ah)"/>
+  <line x1="508" y1="288" x2="546" y2="342" stroke="#58a6ff" stroke-width="1.2" marker-end="url(#ah)"/>
+
+  <!-- arrows col2 -> col3 -->
+  <line x1="800" y1="135" x2="846" y2="210" stroke="#58a6ff" stroke-width="1.2" marker-end="url(#ah)"/>
+  <line x1="800" y1="208" x2="846" y2="132" stroke="#58a6ff" stroke-width="1.2" marker-end="url(#ah)"/>
+  <line x1="800" y1="274" x2="846" y2="146" stroke="#3fb950" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#ah)"/>
+  <line x1="800" y1="340" x2="846" y2="280" stroke="#58a6ff" stroke-width="1.2" marker-end="url(#ah)"/>
+  <text x="806" y="292" font-size="9.5" fill="#6e7681">keepalive</text>
+
+  <!-- router <-> upstreams -->
+  <line x1="912" y1="318" x2="912" y2="344" stroke="#58a6ff" stroke-width="1.2" marker-end="url(#ah)"/>
+  <line x1="988" y1="346" x2="988" y2="320" stroke="#3fb950" stroke-width="1.2" marker-end="url(#ah)"/>
+  <text x="920" y="336" font-size="9.5" fill="#6e7681">call</text>
+  <text x="996" y="336" font-size="9.5" fill="#6e7681">usage</text>
+
+  <!-- dashboard feedback loop -->
+  <path d="M 846 472 C 620 560, 300 500, 180 218" fill="none" stroke="#d29922" stroke-width="1.3" stroke-dasharray="6 4" marker-end="url(#ahw)"/>
+  <text x="430" y="556" font-size="10.5" fill="#d29922">Save &amp; apply — roster edits, validated then re-rendered</text>
+
+  <!-- legend -->
+  <text x="30" y="620" font-size="10" fill="#6e7681">all paths local: 127.0.0.1 · keys never in the roster · solid = apply-time + request flow · dashed = operator feedback</text>
+</svg>

@@ -4,6 +4,10 @@ Local OpenAI-compatible proxy that routes each task to the right upstream
 model. Registered in ZCode as the **Auto Router** provider — its single
 model, `auto`, appears in the model picker (`auto-router/auto`).
 
+<p align="center">
+  <img src="../docs/img/request-lifecycle.svg" alt="Request lifecycle: capability rules first, then the session cache, the TypeSafe judge, single / mixture / swarm execution, the quota-aware chain walk with failover, and metering into the ledger" width="1080">
+</p>
+
 ## Routing
 
 Per request, in order:
@@ -201,6 +205,10 @@ on purpose: the router identity (`port` / `localToken`) — changing the port
 there would desync the running service definition — and the schema version.
 
 ## Quota & steering
+
+<p align="center">
+  <img src="../docs/img/quota.svg" alt="Quota flow: the ledger meters off-peak-weighted spend into hourly buckets, console readings calibrate the allowance, and headroom drives steering, failover, and the dashboard panel" width="1080">
+</p>
 
 No plan provider exposes a quota API (probed: no rate-limit headers, no balance
 endpoints — deepseek's documented `GET /user/balance` is the one exception, and

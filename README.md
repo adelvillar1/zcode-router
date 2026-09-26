@@ -19,6 +19,10 @@ one npm dependency (`@typesafe-ai/sdk`), installed by `kit apply` into the
 runtime dir when missing — that package is the judge that picks the workload,
 the execution style, and the workflow for every `auto` request.
 
+<p align="center">
+  <img src="docs/img/architecture.svg" alt="Architecture: the roster, .env keys, and the workflow library are rendered by kit apply into the router config, ZCode's provider config, the installed workflows, and a keepalive service; the router then routes ZCode's calls to the prepaid upstreams, meters usage into the ledger, and the dashboard edits the roster back through kit apply" width="1080">
+</p>
+
 ## What you get
 
 - **A model roster** — the plans this machine has (token plan, Step plan, MiMo
@@ -222,6 +226,10 @@ steering. Plans under 5% headroom are never suggested as primaries; the
 suggester and the steering both leave undeclared providers alone. See
 [Quota & steering](router/README.md#quota--steering) in the router README:
 
+<p align="center">
+  <img src="docs/img/quota.svg" alt="Quota flow: the ledger meters off-peak-weighted spend into hourly buckets, console readings calibrate the allowance (delta spend over delta percent), and headroom drives steering, failover, and the dashboard panel" width="1080">
+</p>
+
 ```json
 "providers": { "token-plan": { "quota": {
   "kind": "calendar", "allowance": 500000000,
@@ -240,6 +248,10 @@ metadata when omitted):
 ```
 
 ## How the router decides
+
+<p align="center">
+  <img src="docs/img/request-lifecycle.svg" alt="Request lifecycle: capability rules first, then the session cache, the TypeSafe judge (workload, execution, workflow, followUp), then single / mixture / swarm execution, the quota-aware tier chain walk with failover, and metering into the usage ledger" width="1080">
+</p>
 
 For an `auto` request the router makes **one judgment per task** — cached, so
 an agentic tool loop keeps its model until you say something new. The judge
