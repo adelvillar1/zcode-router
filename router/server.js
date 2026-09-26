@@ -928,6 +928,13 @@ const server = http.createServer((req, res) => {
         execution: target.kind === "mixture" ? (target.execution ?? "mixture") : (target.execution ?? "single"),
         workflows: plan.map((x) => x.name),
       });
+      plan.forEach((p, i) =>
+        usage.recordWorkflowAssignment({
+          name: p.name,
+          stage: i === 0 ? "assigned" : "followUp",
+          conf: i === 0 ? target.wfConf ?? null : null,
+        })
+      );
       return;
     }
     if (req.method === "POST" && (req.url === "/v1/chat/completions" || req.url === "/chat/completions")) {
@@ -985,6 +992,7 @@ const server = http.createServer((req, res) => {
               workflowMinConfidence: R.workflowMinConfidence ?? null,
             },
             workflows: R.workflows ?? [],
+            workflowLibrary: config.workflowLibrary ?? null,
           },
           roster: roster
             ? {

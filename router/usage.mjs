@@ -34,6 +34,7 @@ function emptyState() {
     byDay: {}, // day -> key -> { calls, promptTokens, completionTokens }
     executions: { single: 0, mixture: 0, swarm: 0 },
     workloads: {}, // workload name -> call count
+    workflowStats: {}, // workflow name -> { assigned, followUp, lastAt, lastConf }
     delegations: { single: 0, mixture: 0, swarm: 0, withWorkflow: 0 }, // /route verdicts
     judge: { fresh: 0, cached: 0, errors: 0 },
     failedRequests: 0,
@@ -149,6 +150,23 @@ export function createUsage({ file } = {}) {
     touch();
   }
 
+  /**
+   * Per-workflow assignment outcomes — how often the judge actually handed
+   * this workflow a stage. The only place these numbers exist: ZCode can show
+   * that a workflow is defined, not that the router ever picked it.
+   */
+  function recordWorkflowAssignment({ name, stage, conf }) {
+    state.bootAt ??= Date.now();
+    if (!name) return;
+    let s = state.workflowStats[name];
+    if (!s) s = state.workflowStats[name] = { assigned: 0, followUp: 0, lastAt: null, lastConf: null };
+    if (stage === "followUp") s.followUp += 1;
+    else s.assigned += 1;
+    s.lastAt = Date.now();
+    if (Number.isFinite(conf)) s.lastConf = conf;
+    touch();
+  }
+
   /** Judge activity: fresh TypeSafe judgments vs session-cache hits. */
   function recordJudge(kind) {
     state.bootAt ??= Date.now();
@@ -201,6 +219,7 @@ export function createUsage({ file } = {}) {
       days,
       executions: { ...state.executions },
       workloads: { ...state.workloads },
+      workflowStats: { ...state.workflowStats },
       delegations: { ...state.delegations },
       judge: { ...state.judge },
       recent: state.recent.slice(0, 100),
@@ -231,7 +250,7 @@ export function createUsage({ file } = {}) {
     try {
       const raw = JSON.parse(fs.readFileSync(file, "utf8"));
       if (!raw || typeof raw !== "object") return;
-      for (const k of ["startedAt", "byModel", "byDay", "executions", "workloads", "delegations", "judge", "failedRequests", "recent"]) {
+      for (const k of ["startedAt", "byModel", "byDay", "executions", "workloads", "workflowStats", "delegations", "judge", "failedRequests", "recent"]) {
         if (raw[k] !== undefined) state[k] = raw[k];
       }
       state.bootAt = Date.now();
@@ -241,7 +260,7 @@ export function createUsage({ file } = {}) {
 
   load();
 
-  return { record, recordDelegation, recordJudge, snapshot, reset, flush };
+  return { record, recordDelegation, recordWorkflowAssignment, recordJudge, snapshot, reset, flush };
 }
 
 /**

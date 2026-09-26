@@ -145,8 +145,15 @@ Four surfaces:
 - **Providers** — enable/disable, billing plan/payg, whether the key resolves.
   Keys themselves are env-var references by design; set them with `kit env
   set`, never in the UI.
-- **Workflows** — the delegation library registry (read-only): name, the
-  argument the router fills, and the shape the judge matches against.
+- **Workflows** — the delegation registry, and a control rather than a
+  catalog: per workflow, the shape text the judge matches against (roster-owned
+  and authoritative over the workflow's own frontmatter), assignability with
+  the task argument the router fills, arg defaults, and live assignment
+  outcomes (first stage vs follow-up, last assigned) — the only place those
+  numbers exist. ↺ drops an override so the value falls back to library
+  derivation. **Authoring stays in ZCode**: workflows are `.dwf.ts` files in
+  `~/.zcode/workflows/` created via CreateWorkflow; this tab tunes assignment,
+  never the workflow code.
 
 Save & apply writes the roster and then runs the kit's own `kit apply
 --only router,provider` — validation, the payg guard, config regeneration and

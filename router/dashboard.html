@@ -235,9 +235,20 @@
   <!-- ══════════════════════════ WORKFLOWS ══════════════════════════ -->
   <div id="tab-workflows" class="hidden">
     <section class="panel">
-      <h2>Delegation library</h2>
-      <div class="sub">Saved workflows the judge can assign, with the argument the router fills and the shape the judge matches against. The registry is generated from the workflow library's own metadata — edit the library, then <code>kit apply</code>.</div>
-      <table id="workflowsTable"><thead><tr><th style="width:230px">Workflow</th><th style="width:110px">Task arg</th><th>Shape</th></tr></thead><tbody></tbody></table>
+      <h2>Delegation registry</h2>
+      <div class="sub">What the judge may assign, and the shape text it matches against. Both are roster-owned and override the workflow's own frontmatter, so editing here is authoritative. <b>Authoring the workflows themselves lives in ZCode</b> (<code>~/.zcode/workflows/*.dwf.ts</code>, via CreateWorkflow) — this tab tunes assignment only. ↺ drops an override so the value falls back to library derivation.</div>
+      <table id="workflowsTable">
+        <thead><tr>
+          <th style="width:200px">Workflow</th>
+          <th style="width:74px">Assignable</th>
+          <th style="width:118px">Task arg</th>
+          <th>Judge's shape</th>
+          <th style="width:140px">Defaults (JSON)</th>
+          <th style="width:104px">Assigned</th>
+          <th style="width:26px"></th>
+        </tr></thead><tbody></tbody>
+      </table>
+      <div class="row" style="margin-top:10px"><span class="hint" id="registrySummary"></span></div>
     </section>
   </div>
 </main>
@@ -528,7 +539,67 @@ $("#addProfile").onclick = () => {
   renderProfiles();
 };
 
-/* ── render: providers + workflows ──────────────────────────── */
+/* ── render: delegation registry (workflows) ────────────────── */
+const wfStats = (name) => (usage?.workflowStats ?? {})[name] ?? { assigned: 0, followUp: 0, lastAt: null, lastConf: null };
+function wfEntry(name) {
+  roster.workflows ??= {};
+  roster.workflows.registry ??= {};
+  return roster.workflows.registry[name] ?? (roster.workflows.registry[name] = {});
+}
+function pruneEntry(name) {
+  const e = roster.workflows?.registry?.[name];
+  if (e && !Object.keys(e).length) delete roster.workflows.registry[name];
+}
+
+function renderWorkflows() {
+  const lib = state?.resolved?.workflowLibrary ?? [];
+  const tb = $("#workflowsTable tbody");
+  if (!lib.length) {
+    // Old config without the library view: degrade to the read-only catalog.
+    const wfs = state?.resolved?.workflows ?? [];
+    tb.innerHTML = wfs.map((w) => `
+      <tr><td class="mono-list">${esc(w.name)}</td>
+      <td class="n dim">✓</td><td class="mono-list">${esc(w.taskArg ?? "task")}</td>
+      <td class="dim">${esc(w.shape ?? "")}</td><td class="dim">—</td><td class="n dim">—</td><td></td></tr>`).join("")
+      || `<tr><td colspan="7" class="dim">no workflows registered</td></tr>`;
+    $("#registrySummary").textContent = "read-only view — run `kit apply` to load the editable library";
+    return;
+  }
+  tb.innerHTML = "";
+  const rows = [...lib].sort((a, b) => (b.registered - a.registered) || a.name.localeCompare(b.name));
+  let assignable = 0;
+  let overrides = 0;
+  for (const wf of rows) {
+    if (wf.registered) assignable++;
+    if (wf.overridden) overrides++;
+    const entry = roster?.workflows?.registry?.[wf.name] ?? {};
+    const assignableNow = wf.registered && entry.enabled !== false;
+    const effectiveShape = entry.shape ?? wf.shape ?? "";
+    const effectiveArg = entry.taskArg ?? wf.taskArg ?? wf.autoArg ?? "";
+    const st = wfStats(wf.name);
+    const assignedTxt = st.assigned + st.followUp
+      ? `${fmtInt(st.assigned)} + ${fmtInt(st.followUp)} fu · ${ago(st.lastAt)}`
+      : "never";
+    const canDerive = (wf.args ?? []).length > 0;
+    const argOpts = (wf.args ?? []).map((a) => `<option value="${esc(a.name)}">${esc(a.name)}${a.required ? "" : " (opt)"}</option>`).join("");
+    const why = wf.registered ? "" : `<div class="hint" style="color:var(--warn)">${esc(wf.skipReason ?? "")}</div>`;
+    tb.insertAdjacentHTML("beforeend", `<tr style="${wf.registered ? "" : "opacity:.62"}">
+      <td><div class="mono-list">${esc(wf.name)}</div>${why}</td>
+      <td><input type="checkbox" data-wf-assignable="${esc(wf.name)}" ${assignableNow ? "checked" : ""}></td>
+      <td><select data-wf-arg="${esc(wf.name)}" ${canDerive ? "" : "disabled"}>${argOpts}</select></td>
+      <td><input type="text" data-wf-shape="${esc(wf.name)}" value="${esc(effectiveShape)}" placeholder="${esc((wf.whenToUse || wf.description || "").slice(0, 90))}" style="width:100%">
+          <div class="hint" style="margin-top:2px">library: ${esc((wf.whenToUse || wf.description || "—").slice(0, 110))}</div></td>
+      <td><input type="text" data-wf-defaults="${esc(wf.name)}" value="${wf.defaults ? esc(JSON.stringify(wf.defaults)) : ""}" placeholder="{}" style="width:100%"></td>
+      <td class="n ${st.assigned + st.followUp ? "" : "dim"}">${esc(assignedTxt)}</td>
+      <td>${wf.overridden ? `<button class="x" data-wf-reset="${esc(wf.name)}" title="drop override — fall back to library derivation">↺</button>` : ""}</td>
+    </tr>`);
+    const sel = $(`select[data-wf-arg="${CSS.escape(wf.name)}"]`);
+    if (sel && effectiveArg) sel.value = effectiveArg;
+  }
+  $("#registrySummary").textContent = `${assignable} assignable · ${lib.length - assignable} hand-launched · ${overrides} roster override${overrides === 1 ? "" : "s"} — assignment outcomes since the ledger began`;
+}
+
+/* ── render: providers ──────────────────────────────────────── */
 function renderProviders() {
   const list = state?.roster?.providers ?? [];
   $("#providersTable tbody").innerHTML = list.map((p) => `
@@ -539,15 +610,6 @@ function renderProviders() {
       <td><input type="checkbox" data-prov="${esc(p.id)}" ${p.enabled ? "checked" : ""}></td>
       <td>${(p.models ?? []).map((m) => `<span class="chip">${esc(m)}</span>`).join("") || '<span class="dim">none registered</span>'}</td>
     </tr>`).join("");
-}
-function renderWorkflows() {
-  const wfs = state?.resolved?.workflows ?? [];
-  $("#workflowsTable tbody").innerHTML = wfs.map((w) => `
-    <tr>
-      <td class="mono-list">${esc(w.name)}</td>
-      <td class="mono-list">${esc(w.taskArg ?? "task")}</td>
-      <td class="dim">${esc(w.shape ?? "")}</td>
-    </tr>`).join("") || `<tr><td colspan="3" class="dim">no workflows registered</td></tr>`;
 }
 
 /* ── edits ──────────────────────────────────────────────────── */
@@ -567,6 +629,23 @@ document.addEventListener("input", (e) => {
   else if (el.id === "minConfidence") { roster.routing.minConfidence = Number(el.value); }
   else if (el.id === "wfMinConfidence") { roster.routing.workflowMinConfidence = Number(el.value); }
   else if (el.id === "defaultWorkload") { roster.routing.defaultWorkload = el.value; }
+  else if (el.dataset?.wfShape) {
+    const e = wfEntry(el.dataset.wfShape);
+    if (el.value.trim()) e.shape = el.value.trim(); else delete e.shape;
+    pruneEntry(el.dataset.wfShape);
+  } else if (el.dataset?.wfDefaults) {
+    const name = el.dataset.wfDefaults;
+    const v = el.value.trim();
+    const e = wfEntry(name);
+    if (!v) { delete e.defaults; el.classList.remove("bad"); el.title = ""; pruneEntry(name); }
+    else {
+      try {
+        const o = JSON.parse(v);
+        if (!o || typeof o !== "object" || Array.isArray(o)) throw new Error("must be an object");
+        e.defaults = o; el.classList.remove("bad"); el.title = "";
+      } catch { el.classList.add("bad"); el.title = "defaults must be a JSON object"; }
+    }
+  }
 });
 function markChain(el) {
   const p = el.id === "omniModel" || el.id === "wideModel" || el.id.startsWith("mix")
@@ -595,11 +674,36 @@ document.addEventListener("change", (e) => {
       el.checked = false; return;
     }
     roster.allowPayg = el.checked;
+  } else if (el.dataset?.wfArg) {
+    wfEntry(el.dataset.wfArg).taskArg = el.value;
+  } else if (el.dataset?.wfAssignable) {
+    const name = el.dataset.wfAssignable;
+    const wf = (state?.resolved?.workflowLibrary ?? []).find((w) => w.name === name);
+    if (el.checked) {
+      const e = wfEntry(name);
+      delete e.enabled;
+      if (!e.taskArg) {
+        const pick = wf?.autoArg ?? wf?.args?.[0]?.name ?? null;
+        if (!pick) { el.checked = false; toast(`${name} declares no task argument, so the judge cannot fill it — author an arg into the workflow first.`, true); pruneEntry(name); return; }
+        e.taskArg = pick;
+      }
+      if (!e.shape && !wf?.shape) { el.checked = false; toast(`${name} has no shape text for the judge to match against.`, true); pruneEntry(name); return; }
+      renderWorkflows();
+    } else {
+      wfEntry(name).enabled = false;
+    }
   }
 });
 document.addEventListener("click", (e) => {
   const del = e.target.closest?.("[data-del-profile]");
   if (del) { delete roster.profiles[del.dataset.delProfile]; renderProfiles(); }
+  const reset = e.target.closest?.("[data-wf-reset]");
+  if (reset) {
+    delete roster.workflows?.registry?.[reset.dataset.wfReset];
+    pruneEntry(reset.dataset.wfReset);
+    renderWorkflows();
+    toast(`${reset.dataset.wfReset}: override dropped — falls back to library derivation.`, false);
+  }
 });
 
 /* ── save ───────────────────────────────────────────────────── */
@@ -615,6 +719,15 @@ function collectProblems() {
   if (roster.routing?.defaultWorkload && !(roster.routing.defaultWorkload in (roster.tiers ?? {}))) problems.push("default workload is not a tier");
   for (const [name, p] of Object.entries(roster.profiles ?? {})) {
     if (p.workload && !(p.workload in (roster.tiers ?? {}))) problems.push(`profiles.${name}: unknown tier`);
+  }
+  const libByName = new Map((state?.resolved?.workflowLibrary ?? []).map((w) => [w.name, w]));
+  for (const [name, o] of Object.entries(roster.workflows?.registry ?? {})) {
+    if (o.enabled === false) continue;
+    const wf = libByName.get(name);
+    if (!o.taskArg) problems.push(`workflows.registry.${name}: taskArg required to be assignable`);
+    else if (wf?.args?.length && !wf.args.some((a) => a.name === o.taskArg)) problems.push(`workflows.registry.${name}: taskArg "${o.taskArg}" is not an arg the workflow declares`);
+    if (!o.shape && !wf?.shape) problems.push(`workflows.registry.${name}: no shape text for the judge`);
+    if (o.defaults !== undefined && (typeof o.defaults !== "object" || o.defaults === null || Array.isArray(o.defaults))) problems.push(`workflows.registry.${name}: defaults must be a JSON object`);
   }
   return problems;
 }
