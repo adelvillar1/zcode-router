@@ -152,6 +152,14 @@
     },
     "mixture": {
       "use": "mixture"
+    },
+    "deep": {
+      "workload": "hard",
+      "thinking": "deep"
+    },
+    "bulk": {
+      "workload": "quick",
+      "thinking": "off"
     }
   },
   "mixture": {

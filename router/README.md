@@ -124,6 +124,20 @@ installs on. The page is static and carries no secrets; its API calls use the
 same local token as the proxy routes (asked for once, kept in the browser's
 localStorage — `kit status` prints it).
 
+- **Thinking levels** — profiles can carry `thinking: "auto" | "off" | "deep"`
+  (default auto). The roster ships two new picker profiles around this:
+  `deep` (hard tier, thinking forced on — for the problems that deserve the
+  reasoning budget) and `bulk` (quick tier, thinking forced off — for bulk
+  delegation where reasoning tokens are pure waste). `auto` strips reasoning
+  params as before. Providers speak different dialects, so
+  `routing.thinkingStyles` maps providerId → param style: `thinking`
+  ({type: enabled|disabled} — zai, mimo), `enable_thinking` (qwen-style —
+  token-plan, stepfun), `reasoning_effort`, or `none` (strip only). Known
+  providers are pre-mapped; the applied level rides the response as
+  `x-router-thinking` and lands in the ledger's recent rows. Mind the budget:
+  thinking tokens come out of the same `max_tokens`, so a thinking-on call at
+  a tiny cap returns empty content — the ledger shows those as calls with
+  unknown/short completions.
 - **Suggest distribution** — the Delegation tab can propose a complete
   delegation distribution from the roster plus the measured ledger: which
   model serves each workload tier (with fallback order), the omni/wide

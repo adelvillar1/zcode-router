@@ -208,7 +208,8 @@
     <section class="panel">
       <h2>Picker profiles</h2>
       <div class="sub">Named model ids ZCode's picker can pin. <code>workload</code> pins a tier with no judgment; <code>omniModel</code> / <code>mixture</code> force the chain or the fan-out.</div>
-      <table id="profilesTable"><thead><tr><th style="width:200px">Profile id</th><th>Maps to</th><th style="width:40px"></th></tr></thead><tbody></tbody></table>
+      <table id="profilesTable"><thead><tr><th style="width:200px">Profile id</th><th>Maps to</th><th style="width:130px">Thinking</th><th style="width:40px"></th></tr></thead><tbody></tbody></table>
+      <div class="sub" style="margin-top:6px">Thinking: <b>auto</b> strips reasoning params (the judge already matches effort to the task), <b>deep</b> forces the provider's thinking mode on, <b>off</b> forces it off — pair it with a cheap tier for bulk delegation.</div>
       <button class="btn" id="addProfile" style="margin-top:8px">Add profile</button>
     </section>
 
@@ -558,11 +559,13 @@ function renderProfiles() {
   tb.innerHTML = "";
   const tierOpts = Object.keys(r.tiers ?? {}).map((n) => `<option value="workload:${esc(n)}">${esc(n)} (tier)</option>`).join("");
   const options = `<option value="">— choose —</option>${tierOpts}<option value="use:omniModel">omniModel chain</option><option value="use:mixture">mixture fan-out</option>`;
+  const thinkOpts = (cur) => ["auto", "off", "deep"].map((lv) => `<option value="${lv}" ${((cur ?? "auto") === lv) ? "selected" : ""}>${lv === "auto" ? "auto (judge decides)" : lv === "deep" ? "deep — thinking forced on" : "off — thinking forced off"}</option>`).join("");
   for (const [name, p] of Object.entries(r.profiles ?? {})) {
     const val = p.workload ? `workload:${p.workload}` : p.use ? `use:${p.use}` : "";
     tb.insertAdjacentHTML("beforeend", `<tr>
       <td><input type="text" data-profile="${esc(name)}" data-field="name" value="${esc(name)}"></td>
       <td><select data-profile="${esc(name)}" data-field="map">${options}</select></td>
+      <td><select data-profile="${esc(name)}" data-field="thinking">${thinkOpts(p.thinking)}</select></td>
       <td><button class="x" data-del-profile="${esc(name)}" title="remove profile">✕</button></td>
     </tr>`);
     const sel = $(`select[data-profile="${CSS.escape(name)}"][data-field="map"]`);
@@ -751,9 +754,14 @@ document.addEventListener("change", (e) => {
     if (el.dataset.field === "name") {
       const nv = el.value.trim() || old;
       if (nv !== old && !roster.profiles[nv]) { roster.profiles[nv] = roster.profiles[old]; delete roster.profiles[old]; renderProfiles(); }
+    } else if (el.dataset.field === "thinking") {
+      const p = roster.profiles[old] ?? (roster.profiles[old] = {});
+      if (el.value === "auto") delete p.thinking; else p.thinking = el.value;
     } else {
       const v = el.value;
+      const thinking = roster.profiles[old]?.thinking;
       roster.profiles[old] = v.startsWith("workload:") ? { workload: v.slice(9) } : v.startsWith("use:") ? { use: v.slice(4) } : {};
+      if (thinking !== undefined) roster.profiles[old].thinking = thinking;
     }
   } else if (el.dataset?.prov) {
     const id = el.dataset.prov;
@@ -809,6 +817,9 @@ function collectProblems() {
   if (roster.routing?.defaultWorkload && !(roster.routing.defaultWorkload in (roster.tiers ?? {}))) problems.push("default workload is not a tier");
   for (const [name, p] of Object.entries(roster.profiles ?? {})) {
     if (p.workload && !(p.workload in (roster.tiers ?? {}))) problems.push(`profiles.${name}: unknown tier`);
+  }
+  for (const [name, p] of Object.entries(roster.profiles ?? {})) {
+    if (p.thinking !== undefined && !["off", "auto", "deep"].includes(p.thinking)) problems.push(`profiles.${name}.thinking: must be off / auto / deep`);
   }
   const libByName = new Map((state?.resolved?.workflowLibrary ?? []).map((w) => [w.name, w]));
   for (const [name, o] of Object.entries(roster.workflows?.registry ?? {})) {

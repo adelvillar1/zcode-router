@@ -434,7 +434,7 @@ async function decide(signals) {
 // judgment to pick the best answer AND decide whether merging adds value, and
 // an aggregator only when the judge says integration is warranted.
 
-async function chatNonStream(target, body, timeoutMs, onFail) {
+async function chatNonStream(target, body, timeoutMs, onFail, think = { level: "auto", style: null }) {
   const up = upstream(target.providerId);
   if (!up) {
     onFail?.(502, null, "no-upstream");
@@ -447,7 +447,7 @@ async function chatNonStream(target, body, timeoutMs, onFail) {
     const u = await fetch(`${up.baseUrl}/chat/completions`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${up.apiKey}` },
-      body: rewriteBody({ ...body, stream: false }, target.model),
+      body: rewriteBody({ ...body, stream: false }, target.model, think),
       signal: AbortSignal.timeout(timeoutMs ?? R.mixture?.proposerTimeoutMs ?? 120000),
     });
     if (!u.ok) {
@@ -534,7 +534,7 @@ async function judgeProposals(labeled, signals) {
   }
 }
 
-async function aggregate(labeled, signals, body) {
+async function aggregate(labeled, signals, body, think = { level: "auto", style: null }) {
   const agg = R.mixture?.aggregator;
   if (!agg) return null;
   const merged = await chatNonStream(agg, {
@@ -553,13 +553,14 @@ async function aggregate(labeled, signals, body) {
           labeled.map((l) => `ANSWER ${l.label}:\n${l.text}`).join("\n\n"),
       },
     ],
-  }, (R.mixture?.proposerTimeoutMs ?? 120000));
+  }, (R.mixture?.proposerTimeoutMs ?? 120000), null, think);
   return merged;
 }
 
-async function handleMixture(res, body, signals, execution = "mixture") {
+async function handleMixture(res, body, signals, execution = "mixture", thinkLevel = "auto") {
   const t0 = Date.now();
   const mix = R.mixture ?? {};
+  const think = (p) => ({ level: thinkLevel, style: thinkingStyleFor(p.providerId) });
   const proposers = mix.proposers ?? [];
   const results = await Promise.all(
     proposers.map((p) =>
@@ -576,7 +577,7 @@ async function handleMixture(res, body, signals, execution = "mixture") {
           promptTokens: us?.prompt_tokens ?? null,
           completionTokens: us?.completion_tokens ?? null,
           stream: false,
-        }))
+        }), think(p))
     )
   );
   const labeled = results
@@ -596,7 +597,7 @@ async function handleMixture(res, body, signals, execution = "mixture") {
   let finalProviderId = winner.providerId;
   let merged = false;
   if (verdict.worthMerging && labeled.length > 1) {
-    const agg = await aggregate(labeled, signals, body);
+    const agg = await aggregate(labeled, signals, body, think(R.mixture?.aggregator ?? {}));
     if (agg) {
       finalText = agg.text;
       finalModel = agg.model;
@@ -693,13 +694,47 @@ async function handleMixture(res, body, signals, execution = "mixture") {
 }
 
 // ── forwarding ───────────────────────────────────────────────────────────────
-function rewriteBody(body, model) {
+// ── thinking policy ──────────────────────────────────────────────────────────
+// Three levels, selected from the picker via profiles: "auto" (current
+// behavior — strip reasoning params, the judge already picks per task),
+// "deep" (force thinking on, for the hard problems that deserve it), and
+// "off" (force thinking off, for bulk delegation where the reasoning budget
+// is pure waste). Providers speak different dialects, so each maps to a
+// param style: {thinking:{type}} (zai/mimo), enable_thinking (qwen-style
+// token-plan/stepfun), or none (model has no thinking control — strip only).
+const THINKING_STYLES = {
+  "zai-coding-plan": "thinking",
+  "xiaomi-mimo": "thinking",
+  "token-plan": "enable_thinking",
+  "stepfun": "enable_thinking",
+};
+
+function thinkingStyleFor(providerId) {
+  return R.thinkingStyles?.[providerId] ?? THINKING_STYLES[providerId] ?? null;
+}
+
+function thinkingPolicyFor(requestedModel) {
+  const t = R.profiles?.[requestedModel]?.thinking;
+  return t === "off" || t === "deep" ? t : "auto";
+}
+
+function rewriteBody(body, model, thinking = { level: "auto", style: null }) {
   const next = { ...body, model };
-  // "auto" carries no reasoning spec in ZCode; drop reasoning params some
-  // clients attach so conservative upstreams don't 400 on unknown fields.
+  // Baseline: drop reasoning params some clients attach so conservative
+  // upstreams don't 400 on unknown fields.
   delete next.reasoning_effort;
   delete next.thinking;
   delete next.enable_thinking;
+  if (thinking.level === "auto" || !thinking.style || thinking.style === "none") {
+    return JSON.stringify(next);
+  }
+  if (thinking.style === "thinking") {
+    next.thinking = { type: thinking.level === "deep" ? "enabled" : "disabled" };
+  } else if (thinking.style === "enable_thinking") {
+    next.enable_thinking = thinking.level === "deep";
+  } else if (thinking.style === "reasoning_effort") {
+    next.reasoning_effort = thinking.level === "deep" ? "high" : "low";
+  }
   return JSON.stringify(next);
 }
 
@@ -707,17 +742,18 @@ function rewriteBody(body, model) {
 // failures (400/404 …), which pass through as-is because every other candidate
 // would fail the same way. Returns sent=false for failover-able failures
 // (quota/auth/server) so the caller can walk the tier's chain.
-async function attemptUpstream(res, body, signals, target, up, t0, attemptIndex) {
+async function attemptUpstream(res, body, signals, target, up, t0, attemptIndex, thinkLevel) {
   const failover = attemptIndex > 0;
   const ac = new AbortController();
   res.on("close", () => {
     if (!res.writableEnded) ac.abort();
   });
   try {
+    const bodyText = rewriteBody(body, target.model, { level: thinkLevel ?? "auto", style: thinkingStyleFor(target.providerId) });
     const u = await fetch(`${up.baseUrl}/chat/completions`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${up.apiKey}` },
-      body: rewriteBody(body, target.model),
+      body: bodyText,
       signal: ac.signal,
     });
     log({
@@ -734,6 +770,7 @@ async function attemptUpstream(res, body, signals, target, up, t0, attemptIndex)
       tools: signals.toolDefs,
       stream: signals.stream,
       attempt: attemptIndex,
+      thinking: thinkLevel ?? "auto",
       status: u.status,
       ms: Date.now() - t0,
     });
@@ -758,6 +795,7 @@ async function attemptUpstream(res, body, signals, target, up, t0, attemptIndex)
       "x-router-workload": target.workload ?? "unknown",
       "x-router-workflow": target.workflow ?? "none",
       ...(failover ? { "x-router-failover": String(attemptIndex) } : {}),
+      ...(thinkLevel && thinkLevel !== "auto" ? { "x-router-thinking": thinkLevel } : {}),
     };
     const reason = failover ? `failover:${attemptIndex}` : target.reason;
     if (signals.stream) {
@@ -793,6 +831,7 @@ async function attemptUpstream(res, body, signals, target, up, t0, attemptIndex)
           execution: target.execution ?? "single",
           requested: signals.requestedModel,
           reason,
+          thinking: thinkLevel ?? "auto",
           status: u.status,
           ms: Date.now() - t0,
           promptTokens: meter.promptTokens,
@@ -848,7 +887,7 @@ async function attemptUpstream(res, body, signals, target, up, t0, attemptIndex)
       ms: Date.now() - t0,
       stream: signals.stream,
     });
-    log({ event: "route", error: "upstream-failed", provider: target.providerId, model: target.model, attempt: attemptIndex, ms: Date.now() - t0 });
+    log({ event: "route", error: "upstream-failed", provider: target.providerId, model: target.model, attempt: attemptIndex, ms: Date.now() - t0, detail: String(err?.message ?? err).slice(0, 160) });
     return { sent: false, status: null };
   }
 }
@@ -857,8 +896,9 @@ async function forward(res, body, signals) {
   const t0 = Date.now();
   let target = await decide(signals);
   target = steerSingle(target);
+  const thinkLevel = thinkingPolicyFor(signals.requestedModel);
   if (target.kind === "mixture") {
-    await handleMixture(res, body, signals, target.execution ?? "mixture");
+    await handleMixture(res, body, signals, target.execution ?? "mixture", thinkLevel);
     return;
   }
 
@@ -888,7 +928,7 @@ async function forward(res, body, signals) {
       });
       continue;
     }
-    const out = await attemptUpstream(res, body, signals, { ...target, ...cand }, up, t0, i);
+    const out = await attemptUpstream(res, body, signals, { ...target, ...cand }, up, t0, i, thinkLevel);
     if (out.sent) return;
     lastStatus = out.status;
   }

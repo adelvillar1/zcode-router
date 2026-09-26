@@ -108,6 +108,7 @@ export function createUsage({ file, weightOf } = {}) {
       requested: entry.requested ?? null,
       workload: entry.workload ?? null,
       execution: entry.execution ?? "single",
+      thinking: entry.thinking ?? "auto",
       providerId,
       model,
       status,
