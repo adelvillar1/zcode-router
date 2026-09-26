@@ -108,7 +108,14 @@ function quotaState() {
 function steerSingle(target) {
   if (!target || target.kind === "mixture" || !Array.isArray(target.candidates) || target.candidates.length < 2) return target;
   const qs = quotaState();
-  const pick = pickCandidate(target.candidates, qs, R.quotaMinHeadroom ?? 0.4);
+  // A provider answering quota/auth failures goes on a runtime cooldown; a
+  // cooled-down provider steers as zero headroom so the tier's healthy
+  // candidates are preferred while it is benched.
+  const view = { ...qs };
+  for (const [pid, until] of cooldowns) {
+    if (Date.now() < until) view[pid] = { ...(view[pid] ?? {}), headroom: 0 };
+  }
+  const pick = pickCandidate(target.candidates, view, R.quotaMinHeadroom ?? 0.4);
   if (pick.index <= 0) return target;
   const from = target.providerId;
   log({
@@ -695,31 +702,12 @@ function rewriteBody(body, model) {
   return JSON.stringify(next);
 }
 
-async function forward(res, body, signals) {
-  const t0 = Date.now();
-  let target = await decide(signals);
-  target = steerSingle(target);
-  if (target.kind === "mixture") {
-    await handleMixture(res, body, signals, target.execution ?? "mixture");
-    return;
-  }
-  const up = upstream(target.providerId);
-  const routerHeaders = {
-    "x-router-execution": target.execution ?? "single",
-    "x-router-workload": target.workload ?? "unknown",
-    "x-router-workflow": target.workflow ?? "none",
-  };
-  if (!up) {
-    usage.record({
-      providerId: target.providerId, model: target.model, workload: target.workload,
-      execution: target.execution ?? "single", requested: signals.requestedModel,
-      reason: target.reason, status: 502, ms: Date.now() - t0, stream: signals.stream,
-    });
-    res.writeHead(502, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: { message: `router: unknown upstream provider ${target.providerId}` } }));
-    log({ event: "route", error: "unknown-upstream", provider: target.providerId, model: target.model, workload: target.workload });
-    return;
-  }
+// One upstream attempt. Sends the response on success — and on client-caused
+// failures (400/404 …), which pass through as-is because every other candidate
+// would fail the same way. Returns sent=false for failover-able failures
+// (quota/auth/server) so the caller can walk the tier's chain.
+async function attemptUpstream(res, body, signals, target, up, t0, attemptIndex) {
+  const failover = attemptIndex > 0;
   const ac = new AbortController();
   res.on("close", () => {
     if (!res.writableEnded) ac.abort();
@@ -744,9 +732,33 @@ async function forward(res, body, signals) {
       images: signals.images,
       tools: signals.toolDefs,
       stream: signals.stream,
+      attempt: attemptIndex,
       status: u.status,
       ms: Date.now() - t0,
     });
+    if (FAILOVER_STATUS.has(u.status)) {
+      await u.text().catch(() => ""); // drain the error body
+      markCooldown(target.providerId, cooldownFor(u.status, u.headers.get("retry-after")), u.status);
+      usage.record({
+        providerId: target.providerId,
+        model: target.model,
+        workload: target.workload,
+        execution: target.execution ?? "single",
+        requested: signals.requestedModel,
+        reason: `${failover ? `failover:${attemptIndex}` : target.reason ?? "route"}+upstream-${u.status}`,
+        status: u.status,
+        ms: Date.now() - t0,
+        stream: signals.stream,
+      });
+      return { sent: false, status: u.status };
+    }
+    const routerHeaders = {
+      "x-router-execution": target.execution ?? "single",
+      "x-router-workload": target.workload ?? "unknown",
+      "x-router-workflow": target.workflow ?? "none",
+      ...(failover ? { "x-router-failover": String(attemptIndex) } : {}),
+    };
+    const reason = failover ? `failover:${attemptIndex}` : target.reason;
     if (signals.stream) {
       res.writeHead(u.status, {
         "Content-Type": u.headers.get("content-type") ?? "text/event-stream",
@@ -779,7 +791,7 @@ async function forward(res, body, signals) {
           workload: target.workload,
           execution: target.execution ?? "single",
           requested: signals.requestedModel,
-          reason: target.reason,
+          reason,
           status: u.status,
           ms: Date.now() - t0,
           promptTokens: meter.promptTokens,
@@ -790,46 +802,99 @@ async function forward(res, body, signals) {
       res.on("finish", settle);
       res.on("close", settle);
       stream.pipe(tap).pipe(res);
-    } else {
-      const text = await u.text();
-      let pt = null;
-      let ct = null;
-      try {
-        const us = JSON.parse(text)?.usage;
-        if (us && typeof us === "object") {
-          pt = Number.isFinite(us.prompt_tokens) ? us.prompt_tokens : null;
-          ct = Number.isFinite(us.completion_tokens) ? us.completion_tokens : null;
-        }
-      } catch {}
-      usage.record({
-        providerId: target.providerId,
-        model: target.model,
-        workload: target.workload,
-        execution: target.execution ?? "single",
-        requested: signals.requestedModel,
-        reason: target.reason,
-        status: u.status,
-        ms: Date.now() - t0,
-        promptTokens: pt,
-        completionTokens: ct,
-        stream: false,
-      });
-      res.writeHead(u.status, {
-        "Content-Type": u.headers.get("content-type") ?? "application/json",
-        ...routerHeaders,
-      });
-      res.end(text);
+      return { sent: true };
     }
-  } catch (err) {
-    if (ac.signal.aborted) return; // client went away; nothing to answer
+    const text = await u.text();
+    let pt = null;
+    let ct = null;
+    try {
+      const us = JSON.parse(text)?.usage;
+      if (us && typeof us === "object") {
+        pt = Number.isFinite(us.prompt_tokens) ? us.prompt_tokens : null;
+        ct = Number.isFinite(us.completion_tokens) ? us.completion_tokens : null;
+      }
+    } catch {}
     usage.record({
-      providerId: target.providerId, model: target.model, workload: target.workload,
-      execution: target.execution ?? "single", requested: signals.requestedModel,
-      reason: target.reason, status: 502, ms: Date.now() - t0, stream: signals.stream,
+      providerId: target.providerId,
+      model: target.model,
+      workload: target.workload,
+      execution: target.execution ?? "single",
+      requested: signals.requestedModel,
+      reason,
+      status: u.status,
+      ms: Date.now() - t0,
+      promptTokens: pt,
+      completionTokens: ct,
+      stream: false,
     });
+    res.writeHead(u.status, {
+      "Content-Type": u.headers.get("content-type") ?? "application/json",
+      ...routerHeaders,
+    });
+    res.end(text);
+    return { sent: true };
+  } catch (err) {
+    if (ac.signal.aborted) return { sent: true }; // client went away; nothing to answer
+    markCooldown(target.providerId, FAIL_COOLDOWNS_MS[502], 502); // network-level: bench like a 5xx
+    usage.record({
+      providerId: target.providerId,
+      model: target.model,
+      workload: target.workload,
+      execution: target.execution ?? "single",
+      requested: signals.requestedModel,
+      reason: `${failover ? `failover:${attemptIndex}` : target.reason ?? "route"}+upstream-error`,
+      status: 502,
+      ms: Date.now() - t0,
+      stream: signals.stream,
+    });
+    log({ event: "route", error: "upstream-failed", provider: target.providerId, model: target.model, attempt: attemptIndex, ms: Date.now() - t0 });
+    return { sent: false, status: null };
+  }
+}
+
+async function forward(res, body, signals) {
+  const t0 = Date.now();
+  let target = await decide(signals);
+  target = steerSingle(target);
+  if (target.kind === "mixture") {
+    await handleMixture(res, body, signals, target.execution ?? "mixture");
+    return;
+  }
+
+  // The tier's candidate chain is the roster's capability-proximity order:
+  // steered target first, then the rest. Quota/auth/server failures walk it;
+  // client-caused failures surface as-is. A provider that just failed is
+  // benched, so later requests skip it proactively.
+  const seen = new Set();
+  const attempts = [{ providerId: target.providerId, model: target.model }, ...(target.candidates ?? [])].filter((c) => {
+    const key = `${c.providerId}/${c.model}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  let lastStatus = null;
+  for (let i = 0; i < attempts.length; i++) {
+    if (res.writableEnded || res.destroyed) return; // client gone mid-failover
+    const cand = attempts[i];
+    if (i > 0 && isCoolingDown(cand.providerId)) continue; // benched upstream
+    const up = upstream(cand.providerId);
+    if (!up) {
+      usage.record({
+        providerId: cand.providerId, model: cand.model, workload: target.workload,
+        execution: target.execution ?? "single", requested: signals.requestedModel,
+        reason: `failover:${i}:unknown-upstream`, status: 502, ms: Date.now() - t0, stream: signals.stream,
+      });
+      continue;
+    }
+    const out = await attemptUpstream(res, body, signals, { ...target, ...cand }, up, t0, i);
+    if (out.sent) return;
+    lastStatus = out.status;
+  }
+  log({ event: "route", error: "all-candidates-failed", workload: target.workload, attempts: attempts.length, lastStatus });
+  if (!res.writableEnded && !res.destroyed) {
     res.writeHead(502, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: { message: `router: upstream ${target.providerId} failed: ${String(err?.message ?? err)}` } }));
-    log({ event: "route", error: "upstream-failed", provider: target.providerId, model: target.model, ms: Date.now() - t0 });
+    res.end(JSON.stringify({ error: { message: `router: all ${attempts.length} candidate(s) for workload "${target.workload}" failed (last status ${lastStatus ?? "network error"})` } }));
   }
 }
 
@@ -890,6 +955,45 @@ async function applyRoster(candidate) {
     output += "\n(rollback skipped: no previous roster on disk)";
   }
   return { ok: false, output, restartRecommended: false };
+}
+
+// ── runtime failover: quota/auth/server failures walk the tier's chain ──────
+// Quota steering reacts to *declared* headroom before a call; this is the
+// other half — when a provider actually answers "quota exhausted" (429/402),
+// refuses auth, or 5xx's, the router walks the tier's remaining candidates in
+// roster order (the capability-proximity order the roster already encodes)
+// and puts the failed provider on a cooldown so later requests skip it
+// proactively instead of paying the failed attempt again.
+const FAIL_COOLDOWNS_MS = {
+  401: 600_000, 402: 900_000, 403: 1_800_000,
+  429: 300_000, 408: 60_000, 500: 60_000, 502: 60_000, 503: 60_000, 504: 60_000,
+};
+const FAILOVER_STATUS = new Set(Object.keys(FAIL_COOLDOWNS_MS).map(Number));
+const cooldowns = new Map(); // providerId -> until (epoch ms)
+const isCoolingDown = (pid) => Date.now() < (cooldowns.get(pid) ?? 0);
+
+function parseRetryAfter(v) {
+  if (!v) return null;
+  const secs = Number(v);
+  if (Number.isFinite(secs)) return secs * 1000;
+  const at = Date.parse(v);
+  return Number.isFinite(at) ? Math.max(0, at - Date.now()) : null;
+}
+
+function cooldownFor(status, retryAfterHeader) {
+  const declared = R.failover?.cooldowns?.[status] ?? FAIL_COOLDOWNS_MS[status] ?? 60_000;
+  // Honor Retry-After when the provider sent one (429/503 are the honest
+  // cases); cap it so a nonsense header can't bench a provider for a day.
+  const ra = status === 429 || status === 503 ? parseRetryAfter(retryAfterHeader) : null;
+  return ra != null ? Math.min(Math.max(ra, 1000), 3600_000) : declared;
+}
+
+function markCooldown(pid, ms, status) {
+  const until = Date.now() + ms;
+  if (until > (cooldowns.get(pid) ?? 0)) {
+    cooldowns.set(pid, until);
+    log({ event: "cooldown", provider: pid, status: status ?? null, ms });
+  }
 }
 
 // ── server ───────────────────────────────────────────────────────────────────
@@ -1069,7 +1173,10 @@ const server = http.createServer((req, res) => {
               const declared = new Set(Object.keys(quotaState()));
               const routed = new Set();
               for (const w of Object.values(R.workloads ?? {})) for (const c of w.candidates ?? []) routed.add(c.providerId);
-              for (const p of [R.omniModel, R.wideModel, R.mixture?.aggregator].flat().filter(Boolean)) routed.add(p.providerId);
+              for (const p of [R.omniModel, R.wideModel, R.mixture?.aggregator].flat().filter(Boolean)) {
+                routed.add(p.providerId);
+                for (const c of p.candidates ?? []) routed.add(c.providerId);
+              }
               for (const p of R.mixture?.proposers ?? []) routed.add(p.providerId);
               return [...routed].filter((pid) => !declared.has(pid));
             })(),

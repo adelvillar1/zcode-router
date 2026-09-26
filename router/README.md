@@ -199,14 +199,32 @@ measures weighted spend per provider, and the roster declares the rest.
   (a quota reset) is never calibrated across. Reads entered on the Quota tab
   are stamped for you; reads hand-added to the roster older than yesterday are
   excluded from pair calibration.
-- **Steering** — apply now embeds each tier's full usable candidate chain, and
-  the router walks it: first candidate whose headroom (1 − spend/allowance) is
-  at or above `routing.quotaMinHeadroom` (default 0.4) wins. Providers without
-  a declaration are neutral — balancing never diverts away from what is
-  unknown. If every declared candidate is under pressure, the max-headroom one
-  wins. Steering only ever reorders a tier's own chain, is logged as
-  `quota-steer`, and shows in the ledger as `quota:steered`. Capability
-  routing (multimodal/wide) and mixture executions are exempt.
+- **Steering** — apply embeds each tier's full usable candidate chain, and the
+  router walks it: first candidate whose headroom (1 − spend/allowance) is at
+  or above `routing.quotaMinHeadroom` (default 0.4) wins. Providers without a
+  declaration are neutral — steering never diverts away from what is unknown.
+  If every declared candidate is under pressure, the max-headroom one wins.
+  Steering only ever reorders a tier's own chain, is logged as `quota-steer`,
+  and shows in the ledger as `quota:steered`. Capability chains steer on the
+  same rules (every candidate in them is omni/wide-capable by construction);
+  mixture executions are exempt.
+- **Runtime failover & cooldowns** — quota steering reacts to declared
+  headroom before a call; failover covers the case where the provider answers
+  "no" anyway. A 402/403/408/429/5xx (or a network error) from the serving
+  upstream walks the rest of the tier's candidate chain in roster order —
+  the chain *is* the capability-proximity ranking, so "closest model in the
+  roster" is exactly what it tries next. The failed provider is benched for a
+  status-dependent cooldown (429: 5 min, 402: 15 min, 403: 30 min, 5xx and
+  network errors: 1 min; a `Retry-After` header on 429/503 wins within an
+  hour cap, and `routing.failover.cooldowns` overrides any entry), during
+  which steering and the failover walk both skip it. Failovers are logged as
+  `attempt: N` on the route line and `failover:N` in the ledger, and the
+  client sees `x-router-failover` on the response. Client-caused failures
+  (400/404) are surfaced as-is — every other candidate would fail them too.
+  Capability chains (omni/wide) fail over on the same rules; a failure that
+  exhausts the whole chain surfaces as a 502 naming the workload and the last
+  status, so the roster can be fixed.
+
 - **The dashboard's Quota tab** shows each declared provider's headroom bar,
   spend vs allowance in weighted router-tokens, the off-peak schedule, the
   ledger-implied percentage versus the last console reading, and a one-field
