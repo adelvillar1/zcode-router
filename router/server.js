@@ -31,6 +31,7 @@ import { spawn } from "node:child_process";
 import { TypeSafeClient, choice, noul } from "@typesafe-ai/sdk";
 import { createUsage, sseUsageTap } from "./usage.mjs";
 import { offpeakWeight, computeQuotaState, pickCandidate } from "./quota.mjs";
+import { suggestDelegation } from "./suggest.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const expand = (p) => (p.startsWith("~") ? path.join(os.homedir(), p.slice(1)) : p);
@@ -1212,6 +1213,40 @@ const server = http.createServer((req, res) => {
       if (req.method === "POST" && req.url === "/api/usage/reset") {
         usage.reset();
         jsonOut(200, { ok: true, ...usage.snapshot() });
+        return;
+      }
+      // Suggest a delegation distribution from the roster + measured ledger.
+      // Deterministic and read-only — nothing is applied until the operator
+      // sends the edited roster back through PUT /api/roster.
+      if (req.method === "GET" && req.url === "/api/suggest") {
+        const r = readRoster();
+        if (!r.ok) {
+          jsonOut(500, { ok: false, error: r.error });
+          return;
+        }
+        try {
+          // Router-only providers keep models[] empty (they route via tiers,
+          // not the picker) — collect every routed pair from the live config
+          // so the suggester can consider them too.
+          const routedModels = {};
+          for (const w of Object.values(R.workloads ?? {})) {
+            for (const c of w.candidates ?? []) (routedModels[c.providerId] ??= new Set()).add(c.model);
+          }
+          for (const p of [R.omniModel, R.wideModel, R.mixture?.aggregator].flat().filter(Boolean)) {
+            (routedModels[p.providerId] ??= new Set()).add(p.model);
+            for (const c of p.candidates ?? []) (routedModels[c.providerId] ??= new Set()).add(c.model);
+          }
+          for (const p of R.mixture?.proposers ?? []) (routedModels[p.providerId] ??= new Set()).add(p.model);
+          jsonOut(200, suggestDelegation({
+            roster: r.roster,
+            envMap: envFile(),
+            snapshot: usage.snapshot(),
+            quota: quotaState(),
+            routedModels: Object.fromEntries(Object.entries(routedModels).map(([k, v]) => [k, [...v]])),
+          }));
+        } catch (err) {
+          jsonOut(500, { ok: false, error: `suggester failed: ${String(err?.message ?? err)}` });
+        }
         return;
       }
       if (req.method === "GET" && req.url === "/api/roster") {

@@ -212,8 +212,21 @@
       <button class="btn" id="addProfile" style="margin-top:8px">Add profile</button>
     </section>
 
+    <section class="panel hidden" id="suggestPanel">
+      <h2>Suggested distribution</h2>
+      <div class="sub" id="suggestBasis"></div>
+      <table id="suggestTable"><thead><tr><th style="width:150px">Slot</th><th>Current</th><th>Suggested</th><th>Why</th><th style="width:70px">Confidence</th></tr></thead><tbody></tbody></table>
+      <div class="sub" id="suggestNotes" style="margin-top:8px"></div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn primary" id="suggestApply">Apply suggestion</button>
+        <button class="btn" id="suggestDismiss">Dismiss</button>
+        <span class="hint">Applying loads the suggested values into the editor above — nothing is saved until you run Save &amp; apply.</span>
+      </div>
+    </section>
+
     <section class="panel">
       <div class="row">
+        <button class="btn" id="suggestBtn">✦ Suggest distribution</button>
         <button class="btn primary" id="saveRoster">Save &amp; apply</button>
         <button class="btn" id="revertRoster">Revert</button>
         <a class="btn" id="downloadRoster" download="roster.json">Download roster.json</a>
@@ -808,7 +821,7 @@ function collectProblems() {
   }
   return problems;
 }
-$("#saveRoster").onclick = async () => {
+async function saveRosterNow() {
   const problems = collectProblems();
   const out = $("#applyOut");
   if (problems.length) {
@@ -831,7 +844,76 @@ $("#saveRoster").onclick = async () => {
   } catch (e) {
     if (e.message !== "unauthorized") { $("#saveState").textContent = "failed"; toast(e.message, true); }
   } finally { btn.disabled = false; }
+  return true;
+}
+$("#saveRoster").onclick = () => saveRosterNow();
+
+/* ── suggestions ────────────────────────────────────────────── */
+let suggestion = null;
+$("#suggestBtn").onclick = async () => {
+  const btn = $("#suggestBtn");
+  btn.disabled = true;
+  try {
+    suggestion = await api("/api/suggest");
+    renderSuggestion();
+    $("#suggestPanel").classList.remove("hidden");
+    $("#suggestPanel").scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (e) {
+    if (e.message !== "unauthorized") toast(e.message, true);
+  } finally { btn.disabled = false; }
 };
+$("#suggestDismiss").onclick = () => {
+  suggestion = null;
+  $("#suggestPanel").classList.add("hidden");
+};
+$("#suggestApply").onclick = () => {
+  if (!suggestion?.ok) return;
+  const sug = suggestion.suggested ?? {};
+  for (const [name, t] of Object.entries(sug.tiers ?? {})) {
+    if (!roster.tiers?.[name]) continue;
+    roster.tiers[name].target = String(t.target ?? "");
+    roster.tiers[name].fallbacks = [...(t.fallbacks ?? [])];
+  }
+  if (Array.isArray(sug.omniModel) && sug.omniModel.length) roster.omniModel = [...sug.omniModel];
+  if (Array.isArray(sug.wideModel) && sug.wideModel.length) roster.wideModel = [...sug.wideModel];
+  if (sug.mixture?.proposers?.length) {
+    roster.mixture ??= {};
+    roster.mixture.proposers = [...sug.mixture.proposers];
+    if (sug.mixture.aggregator) roster.mixture.aggregator = sug.mixture.aggregator;
+  }
+  renderDelegation();
+  toast("Suggestion loaded into the editor — review it, then Save & apply.", false);
+};
+
+function renderSuggestion() {
+  if (!suggestion?.ok) return;
+  const b = suggestion.basis ?? {};
+  $("#suggestBasis").textContent =
+    `Ranked ${b.modelsScored ?? "?"} model(s) against ${b.recentRequests ?? 0} recent routed request(s). ` +
+    "Deterministic scorer over measured latency and errors, declared context/strength, and calibrated headroom — a starting point, not a benchmark. Declare strengths in the roster to sharpen it.";
+  const chip = (c) => `<span class="badge ${c === "high" ? "plan" : c === "low" ? "payg" : ""}">${c}</span>`;
+  const cur = suggestion.current ?? {};
+  const sug = suggestion.suggested ?? {};
+  const rows = [];
+  for (const [name, t] of Object.entries(sug.tiers ?? {})) {
+    const curT = cur.tiers?.[name] ?? {};
+    const curTxt = [curT.target, ...(curT.fallbacks ?? [])].join(" → ") || "—";
+    const sugTxt = [t.target, ...(t.fallbacks ?? [])].join(" → ");
+    rows.push({ slot: `tier · ${name}`, cur: curTxt, sug: sugTxt, why: suggestion.rationale?.[`tiers.${name}`] ?? "", conf: suggestion.confidence?.[`tiers.${name}`] ?? "low", changed: curTxt !== sugTxt });
+  }
+  if (Array.isArray(sug.omniModel)) rows.push({ slot: "capability · omni", cur: (cur.omniModel ?? []).join(" → ") || "—", sug: sug.omniModel.join(" → "), why: suggestion.rationale?.omniModel ?? "", conf: suggestion.confidence?.omniModel ?? "low", changed: JSON.stringify(cur.omniModel ?? []) !== JSON.stringify(sug.omniModel) });
+  if (Array.isArray(sug.wideModel)) rows.push({ slot: "capability · wide", cur: (cur.wideModel ?? []).join(" → ") || "—", sug: sug.wideModel.join(" → "), why: suggestion.rationale?.wideModel ?? "", conf: suggestion.confidence?.wideModel ?? "low", changed: JSON.stringify(cur.wideModel ?? []) !== JSON.stringify(sug.wideModel) });
+  if (sug.mixture?.proposers?.length) rows.push({ slot: "mixture", cur: [...(cur.mixture?.proposers ?? []), cur.mixture?.aggregator].filter(Boolean).join(" → ") || "—", sug: [...sug.mixture.proposers, sug.mixture.aggregator].filter(Boolean).join(" → "), why: suggestion.rationale?.mixture ?? "", conf: suggestion.confidence?.mixture ?? "low", changed: true });
+  $("#suggestTable tbody").innerHTML = rows.map((r) => `
+    <tr style="${r.changed ? "" : "opacity:.55"}">
+      <td class="mono-list">${esc(r.slot)}${r.changed ? "" : ' <span class="hint">(unchanged)</span>'}</td>
+      <td class="mono-list dim">${esc(r.cur)}</td>
+      <td class="mono-list" style="color:var(--ok)">${esc(r.sug)}</td>
+      <td class="dim">${esc(r.why)}</td>
+      <td>${chip(r.conf)}</td>
+    </tr>`).join("");
+  $("#suggestNotes").textContent = (suggestion.notes ?? []).join(" · ");
+}
 $("#revertRoster").onclick = async () => {
   try { const r = await api("/api/roster"); roster = JSON.parse(JSON.stringify(r.roster)); renderDelegation(); toast("Reverted to the roster on disk.", false); }
   catch (e) { if (e.message !== "unauthorized") toast(e.message, true); }

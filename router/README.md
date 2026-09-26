@@ -119,10 +119,33 @@ upstream URLs and keys (except `zai-coding-plan`, whose key lives in `.env`)
 ## Dashboard
 
 The router serves its own management UI at **`http://127.0.0.1:8300/dashboard`**
-— no app patching, survives ZCode updates, same on every machine the kit
+— no app patching, survives ZCode updates, identical on every machine the kit
 installs on. The page is static and carries no secrets; its API calls use the
 same local token as the proxy routes (asked for once, kept in the browser's
 localStorage — `kit status` prints it).
+
+- **Suggest distribution** — the Delegation tab can propose a complete
+  delegation distribution from the roster plus the measured ledger: which
+  model serves each workload tier (with fallback order), the omni/wide
+  capability chains, and the mixture proposers/aggregator. Each row shows
+  current → suggested with a reason and a confidence chip, and nothing is
+  applied until you push the suggestion into the editor and run Save & apply.
+
+  The scorer is deterministic and its inputs are published per row: measured
+  p50 latency and error rate from the recent-request ring, declared context
+  window and multimodal support (from the roster's manual model rules),
+  calibrated quota headroom, and an optional per-model `strength` (1–5).
+  Weighting differs per objective — `quick` is latency-dominated, `hard` is
+  strength-dominated, `deep_context` floors on declared context. What the
+  scorer cannot know is benchmark quality: models without a declared strength
+  rank neutral, which is why confidence drops to low/medium for tiers with
+  thin call data, and why declaring `strength` in the roster is the way to
+  sharpen it. Payg providers are excluded unless `allowPayg` is on, plans
+  under 5% headroom are never suggested as primaries, and mixture proposers
+  are drawn from distinct providers so errors don't correlate. Router-only
+  providers (empty `models[]`) are scored from the pairs the live config
+  actually routes.
+
 
 Four surfaces:
 
