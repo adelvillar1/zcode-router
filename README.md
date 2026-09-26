@@ -46,6 +46,19 @@ the execution style, and the workflow for every `auto` request.
 - **A workflow library** — the saved dynamic workflows in `workflows/`,
   installed into `~/.zcode/workflows/` without ever deleting files the user
   added locally.
+- **A usage ledger + dashboard** — the router meters every upstream call
+  (calls, errors, prompt/completion tokens, latency) per model and per day —
+  losing mixture proposers included, because a prepaid plan pays for those
+  too — and serves a local dashboard that shows the numbers and edits the
+  roster.
+- **Quota awareness & runtime failover** — declare a plan's allowance (or
+  calibrate it against a console reading through the weighted ledger) and the
+  router steers work toward the plan with headroom; a provider that answers
+  quota-exhausted anyway is benched with a cooldown and the tier falls to its
+  next candidate.
+- **Thinking levels** — `auto` / `deep` / `off` per picker profile: force a
+  provider's thinking mode on for hard problems, force it off for bulk
+  delegation, or leave the judge to decide per task.
 
 ## New-machine quickstart
 
@@ -77,6 +90,7 @@ kit workflows sync         # copy the library into ~/.zcode/workflows
 kit route "audit the docs tree for staleness"   # ask the running router for its verdict
 kit apply                  # render + install + restart + health-check (idempotent)
 kit upgrade                # git pull && kit apply
+open http://127.0.0.1:8300/dashboard   # usage ledger, delegation editor, suggestions
 ```
 
 ## Configuring the roster
@@ -149,6 +163,15 @@ ordered list (first is preferred):
 "omniModel": ["xiaomi-mimo/mimo-v2.6-pro", "zai-coding-plan/GLM-5.3-Flash"]
 ```
 
+At runtime the whole usable chain travels with the tier: if the serving
+upstream answers `402`/`403`/`408`/`429`/`5xx` — or the connection fails — the
+router walks the remaining candidates in roster order and benches the failed
+provider for a cooldown (429: 5 min, 402: 15 min, 403: 30 min, 5xx: 1 min;
+a `Retry-After` header wins, `routing.failover.cooldowns` overrides).
+Client-caused failures (400/404) pass through as-is. The response carries
+`x-router-failover` when a walk happened, and the failed attempt plus the
+winner are separate ledger rows.
+
 `kit export` keeps the fallback chains and tier notes from the roster it
 overwrites, since live state records only where each tier resolved to.
 A provider marked `"billing": "payg"` is refused as a target unless you set
@@ -162,6 +185,49 @@ out to several proposers with a judge that integrates when merging adds value
 "profiles": { "quick": { "workload": "quick" }, "vision": { "use": "omniModel" }, "mixture": { "use": "mixture" } },
 "mixture": { "proposers": ["zai-coding-plan/GLM-5.3-Flash", "xiaomi-mimo/mimo-v2.6-pro", "stepfun/step-5-preview"],
              "aggregator": "zai-coding-plan/GLM-5.3-Flash", "proposerTimeoutMs": 240000 }
+```
+
+**Thinking levels** — a profile may carry `thinking: "auto" | "off" | "deep"`
+(default `auto`, which strips reasoning params exactly as the router always
+has). `deep` injects the provider's thinking-on param, `off` its thinking-off
+param — which dialect each provider speaks comes from
+`routing.thinkingStyles` (`"thinking"` for zai/mimo, `"enable_thinking"` for
+token-plan/stepfun; known providers are pre-mapped). The roster ships two
+profiles built on this: `deep` (hard tier, thinking on) and `bulk` (quick
+tier, thinking off). Mind `max_tokens` — thinking tokens share that budget,
+so a thinking-on call at a tiny cap returns empty content.
+
+```json
+"profiles": { "deep": { "workload": "hard", "thinking": "deep" },
+              "bulk": { "workload": "quick", "thinking": "off" } },
+"routing": { "thinkingStyles": { "my-provider": "thinking" } }
+```
+
+**Model strength (optional)** — the distribution suggester ranks models by
+measured latency and errors, declared context, and quota headroom, but it
+cannot know benchmark quality. `strength` (1–5, higher = stronger) is how you
+tell it, and `hard`/mixture-aggregator suggestions sharpen accordingly.
+Models without a declared strength rank neutral and the suggestion's
+confidence drops — the panel says so rather than pretending:
+
+```json
+"strength": { "zai-coding-plan/GLM-5.3-Flash": 5, "xiaomi-mimo/mimo-v2.6-pro": 4 }
+```
+
+**Plan quota (optional)** — no plan provider exposes a quota API, so the
+router derives what it can: the ledger meters weighted spend per provider
+(off-peak hours count at their declared weight), a console reading — "the
+plan is N% used" — is calibrated against that spend, and headroom drives
+steering. Plans under 5% headroom are never suggested as primaries; the
+suggester and the steering both leave undeclared providers alone. See
+[Quota & steering](router/README.md#quota--steering) in the router README:
+
+```json
+"providers": { "token-plan": { "quota": {
+  "kind": "calendar", "allowance": 500000000,
+  "calibration": { "reads": [{ "date": "2026-09-26", "pct": 23 }] },
+  "offpeak": { "from": "00:00", "to": "08:00", "weight": 0.5, "tz": "Asia/Shanghai" },
+  "source": "console, checked 2026-09-26" } } }
 ```
 
 **Workflow assignment shapes** — one line per saved workflow describing the
@@ -217,6 +283,16 @@ Capability rules are checked before any judgment and always win: a request
 carrying images goes to `omniModel`, and one wider than `wideChars` goes to
 `wideModel`. A text-only target cannot take an image, and a small-context model
 cannot swallow a million characters.
+
+After the verdict, the tier's candidate chain is applied with quota awareness:
+a candidate whose calibrated plan headroom is under
+`routing.quotaMinHeadroom` (default 40%) is passed over for a healthier one in
+the same chain, and if the serving upstream answers quota-exhausted anyway
+(`402`/`403`/`429`/`5xx`) the walk continues to the next candidate while the
+failed provider sits out a cooldown. The chosen profile's thinking policy is
+applied to the forwarded call, and every attempt — successful, diverted, or
+failed — lands in the usage ledger. Full mechanics:
+[router/README.md](router/README.md).
 
 **`single`** — one focused model call to the tier's target. The default for
 ordinary work.
@@ -294,7 +370,12 @@ roster.json                 this machine's roster (gitignored; contains no keys)
 roster.json.example-style template: templates/roster.defaults.json
 bin/, lib/                   the CLI (zero runtime dependencies)
 router/server.js             the router itself (OpenAI-compatible proxy)
-router/README.md             router internals: routing order, judgment, MoA, logs
+router/usage.mjs             the usage ledger + SSE metering tap
+router/quota.mjs             quota derivation (calibration, headroom) and steering
+router/suggest.mjs           the delegation-distribution suggester
+router/dashboard.html        the local dashboard (usage, delegation editor, suggestions)
+router/README.md             router internals: routing order, judgment, MoA, quota,
+                             failover, thinking levels, logs
 workflows/                   the delegation library (.dwf.ts files)
 templates/roster.defaults.json       every roster field, documented
 templates/systemd/                   the Linux user unit

@@ -55,7 +55,27 @@
       ],
       "featured": [
         "qwen3.8-flash"
-      ]
+      ],
+      "quota": {
+        "note": "optional. No provider exposes a quota API, so allowances are derived: the ledger meters weighted spend, a console reading calibrates it (allowance = delta-spend / delta-pct), headroom = 1 - spend/allowance. Under quotaMinHeadroom the tier diverts to its next candidate. kind: pool (start) | calendar (billing anchor) | rolling (windowHours).",
+        "kind": "calendar",
+        "allowance": 500000000,
+        "calibration": {
+          "reads": [
+            {
+              "date": "2026-09-26",
+              "pct": 23
+            }
+          ]
+        },
+        "offpeak": {
+          "from": "00:00",
+          "to": "08:00",
+          "weight": 0.5,
+          "tz": "Asia/Shanghai"
+        },
+        "source": "console, checked 2026-09-26"
+      }
     },
     "stepfun": {
       "note": "StepFun plan.",
@@ -159,6 +179,16 @@
     },
     "mixture": {
       "use": "mixture"
+    },
+    "deep": {
+      "workload": "hard",
+      "thinking": "deep",
+      "note": "thinking forced on — for the problems that deserve the reasoning budget; raise max_tokens, thinking shares it"
+    },
+    "bulk": {
+      "workload": "quick",
+      "thinking": "off",
+      "note": "thinking forced off — bulk delegation where reasoning tokens are pure waste"
     }
   },
   "mixture": {
@@ -178,7 +208,11 @@
     "wideChars": 1000000,
     "minConfidence": 0.6,
     "workflowMinConfidence": 0.4,
-    "defaultWorkload": "standard_code"
+    "defaultWorkload": "standard_code",
+    "thinkingStyles": {
+      "note": "providerId -> param dialect for profiles[].thinking: 'thinking' ({type: enabled|disabled}) | 'enable_thinking' (qwen-style) | 'reasoning_effort' | 'none'. Known providers are pre-mapped in the router; add entries here only for unusual upstreams.",
+      "some-odd-upstream": "thinking"
+    }
   },
   "workflows": {
     "shapes": {
@@ -298,5 +332,10 @@
       },
       "providerId": "xiaomi-mimo"
     }
-  ]
+  ],
+  "strength": {
+    "note": "optional 1-5 per model, higher = stronger. Feeds the distribution suggester (hard tier and mixture aggregator); models without one rank neutral. Same shape lives in roster.json.",
+    "zai-coding-plan/GLM-5.3-Flash": 5,
+    "xiaomi-mimo/mimo-v2.6-pro": 4
+  }
 }
