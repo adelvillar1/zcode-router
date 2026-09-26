@@ -282,7 +282,15 @@ const $$ = (s, el) => Array.from((el ?? document).querySelectorAll(s));
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 const TOKEN_KEY = "zcode-router-token";
-let token = localStorage.getItem(TOKEN_KEY) ?? "";
+// The server stamps the current local token here when serving the page. That
+// is a deliberate trade: the page is a same-origin operator console on
+// 127.0.0.1 — web pages cannot read the cross-origin response, and any local
+// process can read config.json anyway — while the proxy routes keep their
+// token gate (that gate is what stops other local processes from spending
+// your prepaid plans). The injected token wins over stale localStorage so a
+// wrong saved value self-heals on reload.
+const INJECTED_TOKEN = "";
+let token = INJECTED_TOKEN || localStorage.getItem(TOKEN_KEY) || "";
 let state = null;       // /api/state payload
 let usage = null;       // /api/usage payload
 let roster = null;      // editable deep copy

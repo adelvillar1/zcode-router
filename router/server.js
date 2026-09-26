@@ -905,12 +905,21 @@ const server = http.createServer((req, res) => {
       res.end(JSON.stringify({ ok: true }));
       return;
     }
-    // The dashboard shell is static and carries no secrets — every /api call
-    // it makes is token-gated below like the proxy routes are.
+    // The dashboard shell carries no secrets in its static form, but the
+    // served page is stamped with the current local token: same-origin
+    // operator convenience (web pages cannot read the cross-origin response;
+    // local processes can read config.json anyway), while the proxy routes
+    // keep their token gate. The page prefers the injected token over stale
+    // localStorage, so a wrong saved value self-heals on reload.
     if (req.method === "GET" && (req.url === "/dashboard" || req.url === "/dashboard/")) {
       try {
+        const html = fs.readFileSync(DASHBOARD_FILE, "utf8");
+        const stamped = html.replace(
+          'const INJECTED_TOKEN = "";',
+          `const INJECTED_TOKEN = ${JSON.stringify(config.localToken)};`
+        );
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
-        res.end(fs.readFileSync(DASHBOARD_FILE));
+        res.end(stamped);
       } catch {
         res.writeHead(404, { "Content-Type": "text/plain" });
         res.end("dashboard.html missing — run `kit apply` to install the router runtime");
