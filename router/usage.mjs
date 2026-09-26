@@ -32,6 +32,8 @@ function emptyState() {
     bootAt: null, // current process start
     byModel: {}, // key -> { calls, ok, errors, promptTokens, completionTokens, tokensKnown, lastUsedAt }
     byDay: {}, // day -> key -> { calls, promptTokens, completionTokens }
+    hourly: {}, // providerId -> "YYYY-MM-DDTHH" (UTC) -> { calls, tokens } — the raw material for rolling windows and off-peak weighting
+    cumWeighted: {}, // providerId -> weighted tokens since the ledger began (off-peak discounts applied at record time)
     executions: { single: 0, mixture: 0, swarm: 0 },
     workloads: {}, // workload name -> call count
     workflowStats: {}, // workflow name -> { assigned, followUp, lastAt, lastConf }
@@ -42,7 +44,10 @@ function emptyState() {
   };
 }
 
-export function createUsage({ file } = {}) {
+export function createUsage({ file, weightOf } = {}) {
+  const weight = (providerId, ts) => {
+    try { return weightOf?.(providerId, ts) ?? 1; } catch { return 1; }
+  };
   const state = emptyState();
   let dirty = false;
   let flushTimer = null;
@@ -70,6 +75,12 @@ export function createUsage({ file } = {}) {
     const cutoff = Date.now() - KEEP_DAYS * DAY_MS;
     for (const day of Object.keys(state.byDay)) {
       if (new Date(day + "T00:00:00Z").getTime() < cutoff) delete state.byDay[day];
+    }
+    for (const [pid, hours] of Object.entries(state.hourly)) {
+      for (const hourKey of Object.keys(hours)) {
+        if (Date.parse(hourKey + ":00:00Z") < cutoff) delete hours[hourKey];
+      }
+      if (!Object.keys(hours).length) delete state.hourly[pid];
     }
     while (state.recent.length > MAX_RECENT) state.recent.pop();
   }
@@ -136,6 +147,19 @@ export function createUsage({ file } = {}) {
       }
     }
 
+    // Time-series layer: hourly buckets per provider plus a cumulative
+    // weighted counter — the numerators for rolling windows, calendar
+    // windows, pools, and off-peak-aware quota accounting.
+    if (providerId) {
+      const hourKey = new Date(ts).toISOString().slice(0, 13);
+      const h = (state.hourly[providerId] ??= {});
+      const hb = h[hourKey] ?? (h[hourKey] = { calls: 0, tokens: 0 });
+      hb.calls += 1;
+      const spent = hasTokens ? (entry.promptTokens ?? 0) + (entry.completionTokens ?? 0) : 0;
+      hb.tokens += spent;
+      state.cumWeighted[providerId] = (state.cumWeighted[providerId] ?? 0) + spent * weight(providerId, ts);
+    }
+
     prune();
     touch();
   }
@@ -174,6 +198,18 @@ export function createUsage({ file } = {}) {
     else if (kind === "cached") state.judge.cached += 1;
     else state.judge.errors += 1;
     touch();
+  }
+
+  /** Hourly buckets for one provider, oldest first: [{ hourTs, calls, tokens }]. */
+  function hourly(providerId) {
+    return Object.entries(state.hourly[providerId] ?? {})
+      .map(([hourKey, b]) => ({ hourTs: Date.parse(hourKey + ":00:00Z"), calls: b.calls, tokens: b.tokens }))
+      .sort((a, b) => a.hourTs - b.hourTs);
+  }
+
+  /** Cumulative weighted tokens since the ledger began, for one provider. */
+  function cumulativeWeighted(providerId) {
+    return state.cumWeighted[providerId] ?? 0;
   }
 
   function snapshot() {
@@ -250,7 +286,7 @@ export function createUsage({ file } = {}) {
     try {
       const raw = JSON.parse(fs.readFileSync(file, "utf8"));
       if (!raw || typeof raw !== "object") return;
-      for (const k of ["startedAt", "byModel", "byDay", "executions", "workloads", "workflowStats", "delegations", "judge", "failedRequests", "recent"]) {
+      for (const k of ["startedAt", "byModel", "byDay", "hourly", "cumWeighted", "executions", "workloads", "workflowStats", "delegations", "judge", "failedRequests", "recent"]) {
         if (raw[k] !== undefined) state[k] = raw[k];
       }
       state.bootAt = Date.now();
@@ -260,7 +296,7 @@ export function createUsage({ file } = {}) {
 
   load();
 
-  return { record, recordDelegation, recordWorkflowAssignment, recordJudge, snapshot, reset, flush };
+  return { record, recordDelegation, recordWorkflowAssignment, recordJudge, snapshot, reset, flush, hourly, cumulativeWeighted };
 }
 
 /**

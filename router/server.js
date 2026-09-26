@@ -30,6 +30,7 @@ import { fileURLToPath } from "node:url";
 import { spawn } from "node:child_process";
 import { TypeSafeClient, choice, noul } from "@typesafe-ai/sdk";
 import { createUsage, sseUsageTap } from "./usage.mjs";
+import { offpeakWeight, computeQuotaState, pickCandidate } from "./quota.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const expand = (p) => (p.startsWith("~") ? path.join(os.homedir(), p.slice(1)) : p);
@@ -56,7 +57,10 @@ function refreshConfig() {
   } catch {}
 }
 
-const usage = createUsage({ file: path.join(LOG_DIR, "usage.json") });
+const usage = createUsage({
+  file: path.join(LOG_DIR, "usage.json"),
+  weightOf: (pid, ts) => offpeakWeight(cachedRoster()?.providers?.[pid]?.quota, ts),
+});
 const DASHBOARD_FILE = path.join(__dirname, "dashboard.html");
 
 // The kit checkout the roster and the apply pipeline live in. The dashboard's
@@ -65,6 +69,59 @@ const DASHBOARD_FILE = path.join(__dirname, "dashboard.html");
 // and the router must never grow a second, drifting copy of it.
 const KIT_ROOT = config.kitRoot ? expand(config.kitRoot) : path.resolve(__dirname, "..", "..");
 const ROSTER_PATH = config.rosterPath ? expand(config.rosterPath) : path.join(KIT_ROOT, "roster.json");
+
+// mtime-cached roster for the hot path (off-peak weights per call, quota
+// steering per decision) — the API endpoints read it fresh instead.
+let rosterCache = null;
+let rosterCacheMtime = 0;
+function cachedRoster() {
+  try {
+    const mtime = fs.statSync(ROSTER_PATH).mtimeMs;
+    if (!rosterCache || mtime !== rosterCacheMtime) {
+      rosterCache = JSON.parse(fs.readFileSync(ROSTER_PATH, "utf8"));
+      rosterCacheMtime = mtime;
+    }
+    return rosterCache;
+  } catch {
+    return rosterCache;
+  }
+}
+
+// Quota derivation with a short cache: it walks hourly buckets, and steering
+// consults it on every routing decision.
+let quotaCache = { at: 0, mtime: -1, state: {} };
+function quotaState() {
+  const roster = cachedRoster();
+  if (!quotaCache.state || Date.now() - quotaCache.at > 30_000 || quotaCache.mtime !== rosterCacheMtime) {
+    quotaCache = { at: Date.now(), mtime: rosterCacheMtime, state: computeQuotaState(roster, usage, (pid, ts) => offpeakWeight(roster?.providers?.[pid]?.quota, ts)) };
+  }
+  return quotaCache.state;
+}
+
+/**
+ * Quota-aware steering: walk the tier's own candidate chain in roster
+ * preference order, skipping providers whose quota headroom is under
+ * pressure. Capability routing (omni/wide) and mixture executions are
+ * exempt — steering only reorders quality-equivalent candidates the roster
+ * already trusts for this tier.
+ */
+function steerSingle(target) {
+  if (!target || target.kind === "mixture" || !Array.isArray(target.candidates) || target.candidates.length < 2) return target;
+  const qs = quotaState();
+  const pick = pickCandidate(target.candidates, qs, R.quotaMinHeadroom ?? 0.4);
+  if (pick.index <= 0) return target;
+  const from = target.providerId;
+  log({
+    event: "quota-steer",
+    workload: target.workload,
+    from,
+    fromHeadroom: qs[from]?.headroom ?? null,
+    to: pick.candidate.providerId,
+    headroom: pick.headroom,
+    exhausted: pick.exhausted,
+  });
+  return { ...target, ...pick.candidate, reason: "quota:steered" };
+}
 fs.mkdirSync(LOG_DIR, { recursive: true });
 const LOG_FILE = path.join(LOG_DIR, "router.log");
 function log(obj) {
@@ -640,7 +697,8 @@ function rewriteBody(body, model) {
 
 async function forward(res, body, signals) {
   const t0 = Date.now();
-  const target = await decide(signals);
+  let target = await decide(signals);
+  target = steerSingle(target);
   if (target.kind === "mixture") {
     await handleMixture(res, body, signals, target.execution ?? "mixture");
     return;
@@ -887,7 +945,8 @@ const server = http.createServer((req, res) => {
         ? body.messages
         : [{ role: "user", content: String(body.task ?? "") }];
       const signals = analyze({ messages: msgs, model: body.model });
-      const target = await decide(signals);
+      let target = await decide(signals);
+      target = steerSingle(target);
       const defs = config.routing.workflows ?? [];
       const plan = [target.workflow, target.followUp]
         .map((n) => defs.find((w) => w.name === n))
@@ -994,6 +1053,18 @@ const server = http.createServer((req, res) => {
             workflows: R.workflows ?? [],
             workflowLibrary: config.workflowLibrary ?? null,
           },
+          quota: {
+            minHeadroom: R.quotaMinHeadroom ?? 0.4,
+            declared: Object.values(quotaState()),
+            neutral: (() => {
+              const declared = new Set(Object.keys(quotaState()));
+              const routed = new Set();
+              for (const w of Object.values(R.workloads ?? {})) for (const c of w.candidates ?? []) routed.add(c.providerId);
+              for (const p of [R.omniModel, R.wideModel, R.mixture?.aggregator].flat().filter(Boolean)) routed.add(p.providerId);
+              for (const p of R.mixture?.proposers ?? []) routed.add(p.providerId);
+              return [...routed].filter((pid) => !declared.has(pid));
+            })(),
+          },
           roster: roster
             ? {
                 providers: Object.entries(roster.providers ?? {}).map(([id, p]) => ({
@@ -1058,6 +1129,20 @@ const server = http.createServer((req, res) => {
         if (cur.ok) {
           if (cur.roster.router) candidate.router = cur.roster.router;
           if (cur.roster.exportedFrom) candidate.exportedFrom = cur.roster.exportedFrom;
+        }
+        // Calibration reads entered today are stamped with the cumulative
+        // weighted spend at this instant — that stamp is what makes the
+        // allowance derivation exact. Reads back-dated beyond yesterday can't
+        // be stamped honestly and stay unstamped (excluded from pair
+        // calibration until they age into the ledger's own derivable range).
+        const today = new Date().toISOString().slice(0, 10);
+        const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+        for (const [pid, p] of Object.entries(candidate.providers ?? {})) {
+          for (const read of p.quota?.calibration?.reads ?? []) {
+            if (!Number.isFinite(read.cum) && (read.date === today || read.date === yesterday)) {
+              read.cum = usage.cumulativeWeighted(pid);
+            }
+          }
         }
         const result = await applyRoster(candidate);
         jsonOut(result.ok ? 200 : 409, { ok: result.ok, output: result.output, restartRecommended: result.restartRecommended });

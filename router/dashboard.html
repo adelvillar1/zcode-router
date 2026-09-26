@@ -103,6 +103,7 @@
   .toast { position: fixed; bottom: 18px; right: 18px; background: var(--panel2); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 8px; padding: 10px 14px; font-size: 12.5px; z-index: 40; max-width: 380px; }
   .toast.bad { border-left-color: var(--err); }
   .mono-list { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+  .qcard { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; }
 </style>
 </head>
 <body>
@@ -119,6 +120,7 @@
   <button data-tab="usage" class="on">Usage</button>
   <button data-tab="delegation">Delegation</button>
   <button data-tab="providers">Providers</button>
+  <button data-tab="quota">Quota</button>
   <button data-tab="workflows">Workflows</button>
 </nav>
 
@@ -229,6 +231,16 @@
       <table id="providersTable"><thead><tr>
         <th>Provider</th><th>Billing</th><th>Key</th><th>Enabled</th><th>Models</th>
       </tr></thead><tbody></tbody></table>
+    </section>
+  </div>
+
+  <!-- ══════════════════════════ QUOTA ══════════════════════════ -->
+  <div id="tab-quota" class="hidden">
+    <section class="panel">
+      <h2>Plan quota &amp; steering</h2>
+      <div class="sub">No plan provider exposes a quota API (probed — no headers, no balance endpoints), so allowances are <b>estimates</b>: derived from your console readings through the weighted ledger, or declared outright. Off-peak hours count at their declared weight. Headroom drives steering — a tier diverts to its next candidate when the current one drops below <span id="quotaThreshold" class="mono-list"></span> headroom, and only within that tier's own chain. Providers without a declaration are neutral: never steered away from.</div>
+      <div class="grid2" id="quotaCards" style="margin-top:12px"></div>
+      <div class="sub" id="quotaNeutral" style="margin-top:12px"></div>
     </section>
   </div>
 
@@ -612,6 +624,58 @@ function renderProviders() {
     </tr>`).join("");
 }
 
+/* ── render: quota ──────────────────────────────────────────── */
+function renderQuota() {
+  const q = state.quota ?? {};
+  $("#quotaThreshold").textContent = `${Math.round((q.minHeadroom ?? 0.4) * 100)}%`;
+  const declared = q.declared ?? [];
+  $("#quotaCards").innerHTML = declared.map((p) => {
+    const hr = Number.isFinite(p.headroom) ? p.headroom : null;
+    const win = p.kind === "rolling"
+      ? `rolling ${p.windowHours ?? 24}h`
+      : p.kind === "calendar"
+        ? `calendar (anchor ${p.windowStart ? new Date(p.windowStart).toISOString().slice(0, 10) : "?"})`
+        : `pool${p.windowEnd ? `, until ${new Date(p.windowEnd).toISOString().slice(0, 10)}` : ""}`;
+    const src = p.source === "calibration"
+      ? `calibrated from ${p.reads.length} read${p.reads.length === 1 ? "" : "s"}${p.stability != null ? ` · spread ±${fmtTok(p.stability / 2)}` : ""}`
+      : p.source === "declared" ? "declared in the roster" : "no allowance known — display only, not steering";
+    const op = p.offpeak ? `off-peak ${p.offpeak.from}–${p.offpeak.to} counts ×${p.offpeak.weight}${p.offpeak.tz ? ` (${p.offpeak.tz})` : ""}` : "no off-peak schedule";
+    const lastRead = p.lastRead ? `console said ${p.lastRead.pct}% on ${p.lastRead.date} · ledger implies ${p.impliedPct != null ? Math.round(p.impliedPct) + "%" : "?"} now` : "no console readings yet";
+    return `<div class="qcard">
+      <div class="row"><b class="mono-list">${esc(p.providerId)}</b><span class="badge">${esc(p.kind)}</span><span class="hint">${esc(win)}${p.incomplete ? " · ledger starts after the window — spend is understated" : ""}</span></div>
+      <div class="bar" style="margin:8px 0 4px;height:18px"><i style="width:${hr != null ? (hr * 100).toFixed(1) : 0}%"></i><span>${hr != null ? `headroom ${Math.round(hr * 100)}%` : "no estimate"}</span></div>
+      <div class="hint">weighted spend ${fmtTok(p.spend)} / allowance ${p.allowance != null ? fmtTok(p.allowance) : "?"} router-tokens · ${esc(src)}</div>
+      <div class="hint">${esc(op)} · ${esc(lastRead)}</div>
+      ${p.sourceNote ? `<div class="hint dim">${esc(p.sourceNote)}</div>` : ""}
+      <div class="row" style="margin-top:8px">
+        <input type="number" min="0" max="100" step="1" placeholder="console says %" data-qread="${esc(p.providerId)}" style="width:110px">
+        <button class="btn" data-qsave="${esc(p.providerId)}">Record reading</button>
+      </div>
+      <div class="hint" style="margin-top:6px">reads: ${p.reads.length ? p.reads.map((r) => `${r.date.slice(5)} ${r.pct}%`).join(" · ") : "none"}</div>
+    </div>`;
+  }).join("") || `<div class="sub">No provider declares quota yet. Add <span class="mono-list">providers.&lt;id&gt;.quota</span> to the roster — <span class="mono-list">{ kind: "pool"|"calendar"|"rolling", allowance?, calibration: { reads: [{ date, pct }] }, offpeak?: { from, to, weight, tz }, source }</span> — then Save &amp; apply. Reads entered here are stamped with the ledger position automatically.</div>`;
+  $("#quotaNeutral").textContent = (q.neutral ?? []).length
+    ? `Neutral — no declaration, never steered on quota: ${(q.neutral ?? []).join(", ")}`
+    : "every routed provider has a quota declaration";
+}
+document.addEventListener("click", (e) => {
+  const save = e.target.closest?.("[data-qsave]");
+  if (!save) return;
+  const pid = save.dataset.qsave;
+  const input = $(`input[data-qread="${CSS.escape(pid)}"]`);
+  const pct = Number(input?.value);
+  if (!Number.isFinite(pct) || pct < 0 || pct > 100) { toast("Enter the console's percentage, 0–100.", true); return; }
+  save.disabled = true;
+  (async () => {
+    const r = await api("/api/roster");
+    r.roster.providers?.[pid]?.quota?.calibration?.reads?.push({ date: new Date().toISOString().slice(0, 10), pct });
+    const res = await api("/api/roster", { method: "PUT", body: JSON.stringify(r.roster) });
+    if (res.ok) { toast(`${pid}: reading recorded (${pct}%) — allowance recalibrated.`, false); state = await api("/api/state"); renderQuota(); }
+    else toast("Save failed — roster rolled back.", true);
+  })().catch((err) => { if (err.message !== "unauthorized") toast(err.message, true); })
+    .finally(() => { save.disabled = false; });
+});
+
 /* ── edits ──────────────────────────────────────────────────── */
 document.addEventListener("input", (e) => {
   const el = e.target;
@@ -773,6 +837,7 @@ function render() {
   renderUsage();
   renderDelegation();
   renderProviders();
+  renderQuota();
   renderWorkflows();
 }
 

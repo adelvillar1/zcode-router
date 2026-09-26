@@ -163,21 +163,79 @@ resynced before the error reaches the UI. Two fields are not dashboard-editable
 on purpose: the router identity (`port` / `localToken`) — changing the port
 there would desync the running service definition — and the schema version.
 
+## Quota & steering
+
+No plan provider exposes a quota API (probed: no rate-limit headers, no balance
+endpoints — deepseek's documented `GET /user/balance` is the one exception, and
+it is payg-blocked anyway). So quota is **derived locally**: the ledger
+measures weighted spend per provider, and the roster declares the rest.
+
+```jsonc
+"providers": {
+  "token-plan": {
+    "quota": {
+      "kind": "pool",                  // pool | calendar | rolling
+      "start": "2026-09-01",           // pool: provisioned date; calendar: billing anchor
+      "windowHours": 24,               // rolling only
+      "allowance": 500000000,          // optional if calibrating
+      "calibration": {
+        "reads": [ { "date": "2026-09-26", "pct": 23 } ]   // what the console says
+      },
+      "offpeak": { "from": "00:00", "to": "08:00", "weight": 0.5, "tz": "Asia/Shanghai" },
+      "source": "console, checked 2026-09-26"
+    }
+  }
+}
+```
+
+- **Weighted spend** — the ledger keeps hourly buckets per provider, and every
+  call's tokens are counted at their off-peak weight at record time. The
+  cumulative weighted counter is the numerator for everything below.
+- **Calibration** — the console reading is the ground truth; the ledger is the
+  conversion. A read stamped with the cumulative weighted spend at that
+  instant (the dashboard does this automatically) turns any two reads into an
+  allowance estimate: `Δweighted-spend ÷ Δ%`. The latest pair wins, earlier
+  pairs show a stability spread, and a percentage that drops between reads
+  (a quota reset) is never calibrated across. Reads entered on the Quota tab
+  are stamped for you; reads hand-added to the roster older than yesterday are
+  excluded from pair calibration.
+- **Steering** — apply now embeds each tier's full usable candidate chain, and
+  the router walks it: first candidate whose headroom (1 − spend/allowance) is
+  at or above `routing.quotaMinHeadroom` (default 0.4) wins. Providers without
+  a declaration are neutral — balancing never diverts away from what is
+  unknown. If every declared candidate is under pressure, the max-headroom one
+  wins. Steering only ever reorders a tier's own chain, is logged as
+  `quota-steer`, and shows in the ledger as `quota:steered`. Capability
+  routing (multimodal/wide) and mixture executions are exempt.
+- **The dashboard's Quota tab** shows each declared provider's headroom bar,
+  spend vs allowance in weighted router-tokens, the off-peak schedule, the
+  ledger-implied percentage versus the last console reading, and a one-field
+  entry for the next console read. Providers without a declaration are listed
+  as neutral.
+
+Every number here is an estimate with a known direction of error — the point
+is bounded, visible, soft-failing approximation, not billing-grade truth.
+
 ## Files
 
 - `server.js` — the proxy (Node ≥ 18, one npm dep: `@typesafe-ai/sdk`).
 - `usage.mjs` — the usage ledger and the SSE tap that meters streams without
   altering a byte.
+- `quota.mjs` — off-peak weighting, calibration math, headroom derivation, and
+  the steering rule.
 - `dashboard.html` — the UI above, served at `/dashboard`.
-- `config.json` — port, local token, tier table, thresholds. **Generated from
+- `config.json` — port, local token, tier table (with each tier's full usable
+  candidate chain), thresholds. **Generated from
   the roster** (`kit apply`), so hand-edits are overwritten — edit the roster
   or use the dashboard instead. Re-read on mtime change; a restart is only
   needed for code changes.
 - `.env` — `TYPESAFE_API_KEY` (chmod 600; copied from the hermes agent env).
 - `logs/router.log` — one JSON line per request: tier, upstream model,
-  reason (`capability:*` / `judge` / `cache` / `judge:low-confidence`),
-  confidence, sizes, upstream status, latency.
-- `logs/usage.json` — the usage ledger the dashboard renders.
+  reason (`capability:*` / `judge` / `cache` / `judge:low-confidence` /
+  `quota:steered`), confidence, sizes, upstream status, latency, plus
+  `quota-steer` events.
+- `logs/usage.json` — the usage ledger the dashboard renders (hourly buckets,
+  weighted cumulative counters included).
 
 ## Operations
 
