@@ -290,6 +290,10 @@ const TOKEN_KEY = "zcode-router-token";
 // your prepaid plans). The injected token wins over stale localStorage so a
 // wrong saved value self-heals on reload.
 const INJECTED_TOKEN = "";
+// Quota tab is dormant until real console readings exist to calibrate against —
+// flip to true to re-enable it. Steering itself stays active server-side for
+// any provider whose roster declares quota.
+const SHOW_QUOTA_TAB = false;
 let token = INJECTED_TOKEN || localStorage.getItem(TOKEN_KEY) || "";
 let state = null;       // /api/state payload
 let usage = null;       // /api/usage payload
@@ -347,6 +351,7 @@ $("#gateGo").onclick = async () => {
 $("#gateToken").addEventListener("keydown", (e) => { if (e.key === "Enter") $("#gateGo").click(); });
 
 /* ── tabs + refresh ─────────────────────────────────────────── */
+if (!SHOW_QUOTA_TAB) document.querySelector('nav button[data-tab="quota"]')?.classList.add("hidden");
 $$("nav button").forEach((b) => (b.onclick = () => {
   tab = b.dataset.tab;
   $$("nav button").forEach((x) => x.classList.toggle("on", x === b));
