@@ -27,14 +27,44 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
+import { spawn } from "node:child_process";
 import { TypeSafeClient, choice, noul } from "@typesafe-ai/sdk";
+import { createUsage, sseUsageTap } from "./usage.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const expand = (p) => (p.startsWith("~") ? path.join(os.homedir(), p.slice(1)) : p);
-const config = JSON.parse(fs.readFileSync(path.join(__dirname, "config.json"), "utf8"));
-const R = config.routing;
-
+const CONFIG_PATH = path.join(__dirname, "config.json");
 const LOG_DIR = path.join(__dirname, "logs");
+
+// config.json is generated from the roster — including by the dashboard's own
+// save-and-apply endpoint while this process is serving — so it is re-read
+// whenever its mtime moves. A failed or half-written read keeps the previous
+// config: a proxy never routes on a config it could not fully parse.
+let config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
+let configMtime = 0;
+let R = config.routing;
+function refreshConfig() {
+  try {
+    const mtime = fs.statSync(CONFIG_PATH).mtimeMs;
+    if (mtime === configMtime) return;
+    const next = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
+    if (!next?.routing?.workloads) return; // defensive: never adopt a broken config
+    config = next;
+    R = config.routing;
+    configMtime = mtime;
+    log({ event: "config-reload", port: config.port });
+  } catch {}
+}
+
+const usage = createUsage({ file: path.join(LOG_DIR, "usage.json") });
+const DASHBOARD_FILE = path.join(__dirname, "dashboard.html");
+
+// The kit checkout the roster and the apply pipeline live in. The dashboard's
+// save-and-apply endpoint shells out to the kit CLI there — the CLI is the
+// reference implementation of roster → config/provider/workflows generation,
+// and the router must never grow a second, drifting copy of it.
+const KIT_ROOT = config.kitRoot ? expand(config.kitRoot) : path.resolve(__dirname, "..", "..");
+const ROSTER_PATH = config.rosterPath ? expand(config.rosterPath) : path.join(KIT_ROOT, "roster.json");
 fs.mkdirSync(LOG_DIR, { recursive: true });
 const LOG_FILE = path.join(LOG_DIR, "router.log");
 function log(obj) {
@@ -164,6 +194,7 @@ async function judgeWorkload(signals) {
       { state, questions, model: config.typesafeModel ?? "jev-1.13.0" },
       { timeout: 4000 }
     );
+    usage.recordJudge("fresh");
     const answer = result?.answers?.workload;
     const workload = answer?.choice;
     const conf = (workload && answer?.probabilities?.[workload]) ?? 0;
@@ -199,13 +230,14 @@ async function judgeWorkload(signals) {
       reason: workloadOk || workflow ? "judge" : "judge:low-confidence",
     };
   } catch (err) {
+    usage.recordJudge("error");
     return { workload: null, execution: null, workflow: null, followUp: null, conf: null, reason: "judge:error:" + String(err?.message ?? err).slice(0, 80) };
   }
 }
 
 // ── routing decision ─────────────────────────────────────────────────────────
 const workloadCache = new Map(); // sessionKey -> { workload, at, conf }
-const TTL_MS = (config.ttlHours ?? 6) * 3600_000;
+const ttlMs = () => (config.ttlHours ?? 6) * 3600_000;
 
 function analyze(body) {
   const messages = Array.isArray(body.messages) ? body.messages : [];
@@ -302,7 +334,8 @@ async function decide(signals) {
   // The judge picks BOTH the workload and the execution style (single /
   // mixture / swarm) — topology is a routing decision.
   const hit = workloadCache.get(signals.sessionKey);
-  if (hit && Date.now() - hit.at < TTL_MS) {
+  if (hit && Date.now() - hit.at < ttlMs()) {
+    usage.recordJudge("cached");
     const cachedWorkflow = hit.workflow ?? null;
     const cachedFollowUp = hit.followUp ?? null;
     if (hit.execution === "mixture" || hit.execution === "swarm") {
@@ -336,9 +369,12 @@ async function decide(signals) {
 // judgment to pick the best answer AND decide whether merging adds value, and
 // an aggregator only when the judge says integration is warranted.
 
-async function chatNonStream(target, body, timeoutMs) {
+async function chatNonStream(target, body, timeoutMs, onFail) {
   const up = upstream(target.providerId);
-  if (!up) return null;
+  if (!up) {
+    onFail?.(502, null, "no-upstream");
+    return null;
+  }
   try {
     // No invented limits: the client's max_tokens passes through verbatim, or
     // is left unset so the upstream model uses its own output default (these
@@ -351,6 +387,7 @@ async function chatNonStream(target, body, timeoutMs) {
     });
     if (!u.ok) {
       const detail = await u.text().catch(() => "");
+      onFail?.(u.status, null, "http-error");
       log({
         event: "mixture-proposer",
         provider: target.providerId,
@@ -362,10 +399,23 @@ async function chatNonStream(target, body, timeoutMs) {
     }
     const d = await u.json();
     const text = d.choices?.[0]?.message?.content;
-    return typeof text === "string" && text.length > 0
-      ? { text, usage: d.usage ?? null, model: target.model }
-      : null;
+    if (typeof text !== "string" || text.length === 0) {
+      // 200 with no content is still a billed call — thinking models can burn
+      // the whole token budget on reasoning and return empty content. Record
+      // the spend; a proposal that says nothing is not a proposal.
+      onFail?.(u.status, d.usage ?? null, "empty-content");
+      log({
+        event: "mixture-proposer",
+        provider: target.providerId,
+        model: target.model,
+        status: u.status,
+        detail: "empty content (usage " + JSON.stringify(d.usage ?? null) + ")",
+      });
+      return null;
+    }
+    return { text, usage: d.usage ?? null, model: target.model };
   } catch (err) {
+    onFail?.(null, null, "fetch-error");
     log({
       event: "mixture-proposer",
       provider: target.providerId,
@@ -406,6 +456,7 @@ async function judgeProposals(labeled, signals) {
       { state, questions, model: config.typesafeModel ?? "jev-1.13.0" },
       { timeout: 6000 }
     );
+    usage.recordJudge("fresh");
     const bestAns = result?.answers?.best_answer;
     const mergeAns = result?.answers?.worth_merging;
     const best = labeled.some((l) => l.label === bestAns?.choice) ? bestAns.choice : labeled[0].label;
@@ -413,6 +464,7 @@ async function judgeProposals(labeled, signals) {
     const worthMerging = mergeAns?.choice === true;
     return { best, conf, worthMerging, reason: "judge" };
   } catch {
+    usage.recordJudge("error");
     return { best: labeled[0].label, conf: null, worthMerging: false, reason: "judge:error" };
   }
 }
@@ -443,11 +495,30 @@ async function aggregate(labeled, signals, body) {
 async function handleMixture(res, body, signals, execution = "mixture") {
   const t0 = Date.now();
   const mix = R.mixture ?? {};
+  const proposers = mix.proposers ?? [];
   const results = await Promise.all(
-    (mix.proposers ?? []).map((p) => chatNonStream(p, body, mix.proposerTimeoutMs))
+    proposers.map((p) =>
+      chatNonStream(p, body, mix.proposerTimeoutMs, (status, us, why) =>
+        usage.record({
+          providerId: p.providerId,
+          model: p.model,
+          workload: "mixture",
+          execution,
+          requested: signals.requestedModel,
+          reason: `proposer-${why ?? "failed"}`,
+          status: status ?? 502,
+          ms: null,
+          promptTokens: us?.prompt_tokens ?? null,
+          completionTokens: us?.completion_tokens ?? null,
+          stream: false,
+        }))
+    )
   );
-  const labeled = results.filter(Boolean).map((g, i) => ({ label: String(i + 1), ...g }));
+  const labeled = results
+    .map((g, i) => (g ? { label: String(i + 1), providerId: proposers[i]?.providerId ?? null, ...g } : null))
+    .filter(Boolean);
   if (labeled.length === 0) {
+    usage.record({ workload: "mixture", execution, requested: signals.requestedModel, status: 502, ms: Date.now() - t0, reason: "mixture:all-proposers-failed", stream: signals.stream });
     res.writeHead(502, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: { message: "mixture: all proposers failed" } }));
     log({ event: "mixture", error: "all-proposers-failed", sessionKey: signals.sessionKey, requested: signals.requestedModel });
@@ -457,13 +528,28 @@ async function handleMixture(res, body, signals, execution = "mixture") {
   const winner = labeled.find((l) => l.label === verdict.best) ?? labeled[0];
   let finalText = winner.text;
   let finalModel = winner.model;
+  let finalProviderId = winner.providerId;
   let merged = false;
   if (verdict.worthMerging && labeled.length > 1) {
     const agg = await aggregate(labeled, signals, body);
     if (agg) {
       finalText = agg.text;
       finalModel = agg.model;
+      finalProviderId = R.mixture?.aggregator?.providerId ?? finalProviderId;
       merged = true;
+      usage.record({
+        providerId: R.mixture?.aggregator?.providerId ?? null,
+        model: agg.model,
+        workload: "mixture",
+        execution,
+        requested: signals.requestedModel,
+        reason: "aggregator",
+        status: 200,
+        ms: null,
+        promptTokens: agg.usage?.prompt_tokens ?? null,
+        completionTokens: agg.usage?.completion_tokens ?? null,
+        stream: false,
+      });
     }
   }
   log({
@@ -482,12 +568,29 @@ async function handleMixture(res, body, signals, execution = "mixture") {
     ms: Date.now() - t0,
   });
 
-  const usage = {
+  // Every model that did work gets credit for the tokens it spent — the
+  // losing proposers too, because a prepaid plan pays for them all the same.
+  for (const l of labeled) {
+    usage.record({
+      providerId: l.providerId,
+      model: l.model,
+      workload: "mixture",
+      execution,
+      requested: signals.requestedModel,
+      reason: `proposer-${l.label}${verdict.best === l.label ? "+best" : ""}`,
+      status: 200,
+      ms: null,
+      promptTokens: l.usage?.prompt_tokens ?? null,
+      completionTokens: l.usage?.completion_tokens ?? null,
+      stream: false,
+    });
+  }
+  const totalUsage = {
     prompt_tokens: labeled.reduce((s, l) => s + (l.usage?.prompt_tokens ?? 0), 0),
     completion_tokens: labeled.reduce((s, l) => s + (l.usage?.completion_tokens ?? 0), 0),
     total_tokens: 0,
   };
-  usage.total_tokens = usage.prompt_tokens + usage.completion_tokens;
+  totalUsage.total_tokens = totalUsage.prompt_tokens + totalUsage.completion_tokens;
 
   if (signals.stream) {
     res.writeHead(200, {
@@ -504,7 +607,7 @@ async function handleMixture(res, body, signals, execution = "mixture") {
     for (let i = 0; i < finalText.length; i += 120) {
       res.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: { content: finalText.slice(i, i + 120) }, finish_reason: null }] })}\n\n`);
     }
-    res.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage })}\n\n`);
+    res.write(`data: ${JSON.stringify({ ...base, choices: [{ index: 0, delta: {}, finish_reason: "stop" }], usage: totalUsage })}\n\n`);
     res.write("data: [DONE]\n\n");
     res.end();
   } else {
@@ -519,7 +622,7 @@ async function handleMixture(res, body, signals, execution = "mixture") {
       created: Math.floor(Date.now() / 1000),
       model: "mixture",
       choices: [{ index: 0, message: { role: "assistant", content: finalText }, finish_reason: "stop" }],
-      usage,
+      usage: totalUsage,
     }));
   }
 }
@@ -549,6 +652,11 @@ async function forward(res, body, signals) {
     "x-router-workflow": target.workflow ?? "none",
   };
   if (!up) {
+    usage.record({
+      providerId: target.providerId, model: target.model, workload: target.workload,
+      execution: target.execution ?? "single", requested: signals.requestedModel,
+      reason: target.reason, status: 502, ms: Date.now() - t0, stream: signals.stream,
+    });
     res.writeHead(502, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: { message: `router: unknown upstream provider ${target.providerId}` } }));
     log({ event: "route", error: "unknown-upstream", provider: target.providerId, model: target.model, workload: target.workload });
@@ -594,9 +702,60 @@ async function forward(res, body, signals) {
       stream.on("error", () => {
         try { res.end(); } catch {}
       });
-      stream.pipe(res);
+      // Meter the stream without altering a byte: the tap scans complete SSE
+      // data lines for the usage object upstreams put in their final chunk.
+      // The call is recorded once when the response settles, with whatever
+      // tokens the upstream reported — null when it reported none.
+      const meter = { promptTokens: null, completionTokens: null };
+      const tap = sseUsageTap((us) => {
+        if (Number.isFinite(us.prompt_tokens)) meter.promptTokens = (meter.promptTokens ?? 0) + us.prompt_tokens;
+        if (Number.isFinite(us.completion_tokens)) meter.completionTokens = (meter.completionTokens ?? 0) + us.completion_tokens;
+      });
+      let recorded = false;
+      const settle = () => {
+        if (recorded) return;
+        recorded = true;
+        usage.record({
+          providerId: target.providerId,
+          model: target.model,
+          workload: target.workload,
+          execution: target.execution ?? "single",
+          requested: signals.requestedModel,
+          reason: target.reason,
+          status: u.status,
+          ms: Date.now() - t0,
+          promptTokens: meter.promptTokens,
+          completionTokens: meter.completionTokens,
+          stream: true,
+        });
+      };
+      res.on("finish", settle);
+      res.on("close", settle);
+      stream.pipe(tap).pipe(res);
     } else {
       const text = await u.text();
+      let pt = null;
+      let ct = null;
+      try {
+        const us = JSON.parse(text)?.usage;
+        if (us && typeof us === "object") {
+          pt = Number.isFinite(us.prompt_tokens) ? us.prompt_tokens : null;
+          ct = Number.isFinite(us.completion_tokens) ? us.completion_tokens : null;
+        }
+      } catch {}
+      usage.record({
+        providerId: target.providerId,
+        model: target.model,
+        workload: target.workload,
+        execution: target.execution ?? "single",
+        requested: signals.requestedModel,
+        reason: target.reason,
+        status: u.status,
+        ms: Date.now() - t0,
+        promptTokens: pt,
+        completionTokens: ct,
+        stream: false,
+      });
       res.writeHead(u.status, {
         "Content-Type": u.headers.get("content-type") ?? "application/json",
         ...routerHeaders,
@@ -605,10 +764,74 @@ async function forward(res, body, signals) {
     }
   } catch (err) {
     if (ac.signal.aborted) return; // client went away; nothing to answer
+    usage.record({
+      providerId: target.providerId, model: target.model, workload: target.workload,
+      execution: target.execution ?? "single", requested: signals.requestedModel,
+      reason: target.reason, status: 502, ms: Date.now() - t0, stream: signals.stream,
+    });
     res.writeHead(502, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: { message: `router: upstream ${target.providerId} failed: ${String(err?.message ?? err)}` } }));
     log({ event: "route", error: "upstream-failed", provider: target.providerId, model: target.model, ms: Date.now() - t0 });
   }
+}
+
+// ── dashboard: roster access + save-and-apply ────────────────────────────────
+function readRoster() {
+  try {
+    return { ok: true, roster: JSON.parse(fs.readFileSync(ROSTER_PATH, "utf8")) };
+  } catch (e) {
+    return { ok: false, error: String(e?.message ?? e) };
+  }
+}
+
+// The kit CLI is the reference implementation of roster → config/provider
+// generation. Running it keeps the dashboard's writes on exactly the path
+// `kit apply` uses — validation, payg guard, backup-before-write and all —
+// instead of a second, drifting copy inside the router.
+function runKitApply(args) {
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, [path.join(KIT_ROOT, "bin", "zcode-router-kit.mjs"), ...args], {
+      cwd: KIT_ROOT,
+      env: { ...process.env, ZCODE_ROUTER_KIT_ROSTER: ROSTER_PATH },
+    });
+    let out = "";
+    const timer = setTimeout(() => {
+      out += "\n(apply killed after 180s)";
+      child.kill("SIGKILL");
+    }, 180_000);
+    child.stdout.on("data", (c) => (out += c));
+    child.stderr.on("data", (c) => (out += c));
+    child.on("close", (code) => {
+      clearTimeout(timer);
+      resolve({ code: code ?? -1, output: out.trim() });
+    });
+    child.on("error", (e) => {
+      clearTimeout(timer);
+      resolve({ code: -1, output: (out + "\n" + String(e?.message ?? e)).trim() });
+    });
+  });
+}
+
+async function applyRoster(candidate) {
+  const current = readRoster();
+  const backup = current.ok ? JSON.stringify(current.roster, null, 2) + "\n" : null;
+  const tmp = `${ROSTER_PATH}.tmp-dashboard`;
+  fs.writeFileSync(tmp, JSON.stringify(candidate, null, 2) + "\n");
+  fs.renameSync(tmp, ROSTER_PATH);
+  const first = await runKitApply(["apply", "--only", "router,provider"]);
+  if (first.code === 0) {
+    return { ok: true, output: first.output, restartRecommended: /copied /.test(first.output) };
+  }
+  let output = first.output;
+  if (backup !== null) {
+    fs.writeFileSync(tmp, backup);
+    fs.renameSync(tmp, ROSTER_PATH);
+    const rollback = await runKitApply(["apply", "--only", "router,provider"]);
+    output += `\n— apply failed; roster restored and resynced (exit ${rollback.code}) —\n${rollback.output}`;
+  } else {
+    output += "\n(rollback skipped: no previous roster on disk)";
+  }
+  return { ok: false, output, restartRecommended: false };
 }
 
 // ── server ───────────────────────────────────────────────────────────────────
@@ -617,10 +840,23 @@ const server = http.createServer((req, res) => {
   const chunks = [];
   req.on("data", (c) => chunks.push(c));
   req.on("end", async () => {
+    refreshConfig();
     const raw = Buffer.concat(chunks).toString("utf8");
     if (req.url === "/healthz") {
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: true }));
+      return;
+    }
+    // The dashboard shell is static and carries no secrets — every /api call
+    // it makes is token-gated below like the proxy routes are.
+    if (req.method === "GET" && (req.url === "/dashboard" || req.url === "/dashboard/")) {
+      try {
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+        res.end(fs.readFileSync(DASHBOARD_FILE));
+      } catch {
+        res.writeHead(404, { "Content-Type": "text/plain" });
+        res.end("dashboard.html missing — run `kit apply` to install the router runtime");
+      }
       return;
     }
     if (auth !== `Bearer ${config.localToken}`) {
@@ -687,6 +923,11 @@ const server = http.createServer((req, res) => {
         workflow: plan.map((x) => x.name).join(" -> ") || null,
         reason: target.reason,
       });
+      usage.recordDelegation({
+        workload: target.workload,
+        execution: target.kind === "mixture" ? (target.execution ?? "mixture") : (target.execution ?? "single"),
+        workflows: plan.map((x) => x.name),
+      });
       return;
     }
     if (req.method === "POST" && (req.url === "/v1/chat/completions" || req.url === "/chat/completions")) {
@@ -712,6 +953,111 @@ const server = http.createServer((req, res) => {
       }
       return;
     }
+    // ── dashboard API — same token gate as the proxy routes ─────────────────
+    if (req.url.startsWith("/api/")) {
+      const jsonOut = (code, obj) => {
+        res.writeHead(code, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+        res.end(JSON.stringify(obj));
+      };
+      if (req.method === "GET" && req.url === "/api/state") {
+        const r = readRoster();
+        const roster = r.ok ? r.roster : null;
+        jsonOut(200, {
+          ok: true,
+          port: config.port,
+          kitRoot: KIT_ROOT,
+          rosterPath: ROSTER_PATH,
+          typesafe: { model: config.typesafeModel ?? null, envFile: config.typesafeEnvFile ?? null, keyPresent: Boolean(typesafeKey()) },
+          guard: {
+            allowPayg: Boolean(roster?.allowPayg),
+            paygProviders: roster ? Object.entries(roster.providers ?? {}).filter(([, p]) => (p.billing ?? "plan") === "payg").map(([id]) => id) : [],
+          },
+          resolved: {
+            defaultWorkload: R.defaultWorkload ?? null,
+            workloads: R.workloads ?? {},
+            omniModel: R.omniModel ?? null,
+            wideModel: R.wideModel ?? null,
+            mixture: R.mixture ?? null,
+            profiles: R.profiles ?? {},
+            thresholds: {
+              wideChars: R.wideChars ?? null,
+              minConfidence: R.minConfidence ?? null,
+              workflowMinConfidence: R.workflowMinConfidence ?? null,
+            },
+            workflows: R.workflows ?? [],
+          },
+          roster: roster
+            ? {
+                providers: Object.entries(roster.providers ?? {}).map(([id, p]) => ({
+                  id,
+                  providerName: p.providerName ?? id,
+                  billing: p.billing ?? "plan",
+                  enabled: p.enabled !== false,
+                  routerOnly: Boolean(p.routerOnly),
+                  apiKeyEnv: p.apiKeyEnv ?? null,
+                  hasKey: p.apiKeyEnv ? Boolean(envFile()[p.apiKeyEnv]) : Boolean(p.apiKey),
+                  models: p.models ?? [],
+                  featured: p.featured ?? [],
+                })),
+                tiers: roster.tiers ?? {},
+                omniModel: roster.omniModel ?? null,
+                wideModel: roster.wideModel ?? null,
+                mixture: roster.mixture ?? null,
+                profiles: roster.profiles ?? {},
+                routing: roster.routing ?? {},
+              }
+            : { error: r.error },
+        });
+        return;
+      }
+      if (req.method === "GET" && req.url === "/api/usage") {
+        jsonOut(200, { ok: true, ...usage.snapshot() });
+        return;
+      }
+      if (req.method === "POST" && req.url === "/api/usage/reset") {
+        usage.reset();
+        jsonOut(200, { ok: true, ...usage.snapshot() });
+        return;
+      }
+      if (req.method === "GET" && req.url === "/api/roster") {
+        const r = readRoster();
+        jsonOut(r.ok ? 200 : 500, r.ok ? { ok: true, path: ROSTER_PATH, roster: r.roster } : { ok: false, error: r.error });
+        return;
+      }
+      if (req.method === "PUT" && req.url === "/api/roster") {
+        let candidate;
+        try {
+          candidate = JSON.parse(raw || "");
+        } catch {
+          jsonOut(400, { ok: false, error: "body is not valid JSON" });
+          return;
+        }
+        if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+          jsonOut(400, { ok: false, error: "roster must be a JSON object" });
+          return;
+        }
+        for (const section of ["providers", "tiers", "profiles", "mixture", "routing"]) {
+          if (!candidate[section] || typeof candidate[section] !== "object") {
+            jsonOut(400, { ok: false, error: `roster.${section} is required (send the whole roster back, edited)` });
+            return;
+          }
+        }
+        // Server-owned fields: the router identity and schema version are not
+        // dashboard-editable — changing the port here would desync the running
+        // service definition, and both belong to `kit apply` / the CLI.
+        candidate.version = 1;
+        const cur = readRoster();
+        if (cur.ok) {
+          if (cur.roster.router) candidate.router = cur.roster.router;
+          if (cur.roster.exportedFrom) candidate.exportedFrom = cur.roster.exportedFrom;
+        }
+        const result = await applyRoster(candidate);
+        jsonOut(result.ok ? 200 : 409, { ok: result.ok, output: result.output, restartRecommended: result.restartRecommended });
+        return;
+      }
+      jsonOut(404, { ok: false, error: "router: unknown api path" });
+      return;
+    }
     res.writeHead(404, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: { message: "router: not found" } }));
   });
@@ -722,8 +1068,17 @@ const server = http.createServer((req, res) => {
 // (launchd KeepAlive restarts the process if it ever does exit).
 process.on("unhandledRejection", (err) => log({ event: "unhandledRejection", detail: String(err).slice(0, 200) }));
 process.on("uncaughtException", (err) => log({ event: "uncaughtException", detail: String(err).slice(0, 200) }));
+// The usage ledger is the dashboard's whole history — never drop it on shutdown.
+for (const sig of ["SIGTERM", "SIGINT"]) {
+  process.on(sig, () => {
+    usage.flush();
+    process.exit(0);
+  });
+}
+process.on("exit", () => usage.flush());
 
 server.listen(config.port, "127.0.0.1", () => {
   log({ event: "start", port: config.port });
   console.log(`zcode-model-router listening on 127.0.0.1:${config.port}`);
+  console.log(`dashboard: http://127.0.0.1:${config.port}/dashboard`);
 });

@@ -116,19 +116,61 @@ is deliberately unused. ZCode's
 upstream URLs and keys (except `zai-coding-plan`, whose key lives in `.env`)
 — the proxy re-reads it automatically when it changes.
 
-To retarget any workload or profile, edit `routing.workloads` / `routing.profiles`
-in `config.json` — any provider in ZCode's provider config can be a target,
-and the next request picks changes up (restart to change the port).
+## Dashboard
+
+The router serves its own management UI at **`http://127.0.0.1:8300/dashboard`**
+— no app patching, survives ZCode updates, same on every machine the kit
+installs on. The page is static and carries no secrets; its API calls use the
+same local token as the proxy routes (asked for once, kept in the browser's
+localStorage — `kit status` prints it).
+
+Four surfaces:
+
+- **Usage** — the point of the router is that plans are prepaid, so the
+  interesting number is what each model actually consumed. Calls, errors,
+  prompt and completion tokens per model (including losing mixture proposers
+  and the aggregator — a prepaid plan pays for those all the same), per-day
+  rollups, the single/mixture/swarm delegation mix, judge freshness
+  (fresh TypeSafe judgments vs session cache hits), and the last 100 routed
+  requests with latency and tokens. Tokens are recorded only when the upstream
+  reported them — nothing is estimated, and a model that never reports usage
+  shows calls with unknown tokens rather than invented numbers. Counters live
+  in `logs/usage.json`, survive deploys and restarts, and are never written on
+  the request path (flushed a few seconds after the last change).
+- **Delegation** — a structured editor for the roster's routing table:
+  workload tiers with their fallback chains, the omni/wide capability chains,
+  mixture proposers and aggregator, judge thresholds, and the picker profiles.
+  Each tier shows what the router resolved *right now*, so a fallback remap is
+  visible instead of silent.
+- **Providers** — enable/disable, billing plan/payg, whether the key resolves.
+  Keys themselves are env-var references by design; set them with `kit env
+  set`, never in the UI.
+- **Workflows** — the delegation library registry (read-only): name, the
+  argument the router fills, and the shape the judge matches against.
+
+Save & apply writes the roster and then runs the kit's own `kit apply
+--only router,provider` — validation, the payg guard, config regeneration and
+the provider_config merge all happen through the reference pipeline, never a
+second copy inside the router. If apply fails, the roster is rolled back and
+resynced before the error reaches the UI. Two fields are not dashboard-editable
+on purpose: the router identity (`port` / `localToken`) — changing the port
+there would desync the running service definition — and the schema version.
 
 ## Files
 
 - `server.js` — the proxy (Node ≥ 18, one npm dep: `@typesafe-ai/sdk`).
-- `config.json` — port, local token, tier table, thresholds. Edit and the
-  next request picks it up (restart to change the port).
+- `usage.mjs` — the usage ledger and the SSE tap that meters streams without
+  altering a byte.
+- `dashboard.html` — the UI above, served at `/dashboard`.
+- `config.json` — port, local token, tier table, thresholds. **Generated from
+  the roster** (`kit apply`), so hand-edits are overwritten — edit the roster
+  or use the dashboard instead. Re-read on mtime change; a restart is only
+  needed for code changes.
 - `.env` — `TYPESAFE_API_KEY` (chmod 600; copied from the hermes agent env).
 - `logs/router.log` — one JSON line per request: tier, upstream model,
   reason (`capability:*` / `judge` / `cache` / `judge:low-confidence`),
   confidence, sizes, upstream status, latency.
+- `logs/usage.json` — the usage ledger the dashboard renders.
 
 ## Operations
 
@@ -140,12 +182,15 @@ Runs as a launchd user agent:
 launchctl kickstart -k gui/$(id -u)/com.alejandrodelvillar.zcode-model-router  # restart
 launchctl bootout gui/$(id -u)/com.alejandrodelvillar.zcode-model-router       # stop
 curl -s http://127.0.0.1:8300/healthz                                          # health
+open http://127.0.0.1:8300/dashboard                                           # usage + roster UI
 tail -f ~/.zcode/router/logs/router.log                                        # watch routing
 ```
 
-To tune tiers, edit `routing.tiers` in `config.json` — any provider that
-exists in ZCode's provider config can be a target. To add DeepSeek
-(pay-per-token) as the `deep` tier, point it at `deepseek/deepseek-v4-pro`.
+To retarget any workload, profile or chain, edit the roster (`roster.json` in
+the kit) or the dashboard's Delegation tab — never `config.json` by hand.
+Tier targets fall down their chain when a provider is disabled, its key is
+missing, or it bills per token while `allowPayg` is off, and `kit apply`
+refuses a roster whose tiers have no usable target at all.
 
 ## Known limits
 
