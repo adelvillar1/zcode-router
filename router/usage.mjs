@@ -26,6 +26,11 @@ function dayOf(ts) {
   return new Date(ts).toISOString().slice(0, 10);
 }
 
+const cascadeQuestions = () => ({
+  workload: zq(), execution: zq(), workflow: zq(), followUp: zq(),
+});
+const zq = () => ({ agree: 0, disagree: 0, abstain: 0, gateRejected: 0 });
+
 function emptyState() {
   return {
     startedAt: null, // first boot that began this ledger
@@ -39,6 +44,7 @@ function emptyState() {
     workflowStats: {}, // workflow name -> { assigned, followUp, lastAt, lastConf }
     delegations: { single: 0, mixture: 0, swarm: 0, withWorkflow: 0 }, // /route verdicts
     judge: { fresh: 0, cached: 0, errors: 0, backends: {} },
+    cascade: { escalations: 0, cold: 0, failed: 0, compared: 0, questions: cascadeQuestions(), disagreements: [] },
     failedRequests: 0,
     recent: [], // newest first, capped
   };
@@ -209,6 +215,44 @@ export function createUsage({ file, weightOf } = {}) {
     touch();
   }
 
+  /**
+   * Cascade reconciliation: on every escalation TypeSafe answers too, so the
+   * two opinions can be compared per question. Measured only on escalations —
+   * a biased sample by construction, since escalations are where GLiNER was
+   * least confident — and labeled that way wherever it is shown.
+   */
+  function recordCascadeEscalation({ fast, judged, defaultWorkload }) {
+    state.bootAt ??= Date.now();
+    state.cascade.escalations += 1;
+    if (fast.cold) state.cascade.cold += 1;
+    else if (String(fast.reason ?? "").includes("error")) state.cascade.failed += 1;
+    const raw = fast.rawVerdict ?? null;
+    if (!raw) { touch(); return; }   // cold/failed: no GLiNER opinion to compare
+    state.cascade.compared += 1;
+    const effWorkload = judged?.workload ?? defaultWorkload ?? null;
+    const pairs = [
+      ["workload", raw.workload ?? null, fast.workload ?? null, effWorkload],
+      ["execution", raw.execution ?? null, fast.execution ?? null, judged?.execution ?? null],
+      ["workflow", raw.workflow ?? null, fast.workflow ?? null, judged?.workflow ?? null],
+      ["followUp", raw.followUp ?? null, fast.followUp ?? null, judged?.followUp ?? null],
+    ];
+    for (const [question, fastValue, gateValue, tsValue] of pairs) {
+      const slot = state.cascade.questions[question] ?? zq();
+      state.cascade.questions[question] = slot;
+      if (fastValue == null || tsValue == null) { slot.abstain += 1; continue; }
+      if (gateValue == null) { slot.gateRejected += 1; continue; }
+      if (String(gateValue) === String(tsValue)) { slot.agree += 1; continue; }
+      slot.disagree += 1;
+      state.cascade.disagreements.unshift({
+        at: Date.now(), question,
+        fastino: String(fastValue), typesafe: String(tsValue),
+        conf: Number.isFinite(fast.conf) ? fast.conf : null,
+      });
+    }
+    while (state.cascade.disagreements.length > 50) state.cascade.disagreements.pop();
+    touch();
+  }
+
   /** Hourly buckets for one provider, oldest first: [{ hourTs, calls, tokens }]. */
   function hourly(providerId) {
     return Object.entries(state.hourly[providerId] ?? {})
@@ -267,6 +311,7 @@ export function createUsage({ file, weightOf } = {}) {
       workflowStats: { ...state.workflowStats },
       delegations: { ...state.delegations },
       judge: { ...state.judge },
+      cascade: { ...state.cascade, disagreements: state.cascade.disagreements.slice(0, 20) },
       recent: state.recent.slice(0, 100),
     };
   }
@@ -295,14 +340,19 @@ export function createUsage({ file, weightOf } = {}) {
     try {
       const raw = JSON.parse(fs.readFileSync(file, "utf8"));
       if (!raw || typeof raw !== "object") return;
-      for (const k of ["startedAt", "byModel", "byDay", "hourly", "cumWeighted", "executions", "workloads", "workflowStats", "delegations", "judge", "failedRequests", "recent"]) {
+      for (const k of ["startedAt", "byModel", "byDay", "hourly", "cumWeighted", "executions", "workloads", "workflowStats", "delegations", "judge", "cascade", "failedRequests", "recent"]) {
         if (raw[k] === undefined) continue;
         // judge gained fields over time (backends) — merge so a ledger written
         // by an older router does not wipe new counters.
         if (k === "judge") state.judge = { ...state.judge, ...raw.judge };
+        else if (k === "cascade") {
+          const def = emptyState().cascade;
+          state.cascade = { ...def, ...raw.cascade, questions: { ...def.questions, ...(raw.cascade.questions ?? {}) }, disagreements: raw.cascade.disagreements ?? [] };
+        }
         else state[k] = raw[k];
       }
       state.judge.backends ??= {};
+      state.cascade.questions ??= cascadeQuestions();
       state.bootAt = Date.now();
       prune();
     } catch {}
@@ -310,7 +360,7 @@ export function createUsage({ file, weightOf } = {}) {
 
   load();
 
-  return { record, recordDelegation, recordWorkflowAssignment, recordJudge, recordJudgeBackend, snapshot, reset, flush, hourly, cumulativeWeighted };
+  return { record, recordDelegation, recordWorkflowAssignment, recordJudge, recordJudgeBackend, recordCascadeEscalation, snapshot, reset, flush, hourly, cumulativeWeighted };
 }
 
 /**

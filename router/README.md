@@ -251,6 +251,17 @@ Per-backend judgment counts land in the ledger and show on the Usage tab
 (`typesafe · fastino · escalated`), so the cascade's handoff rate is visible,
 not assumed.
 
+Escalations are also *reconciled*: on every escalation TypeSafe answers too,
+so the two opinions are compared per question and shown on the Usage tab's
+Cascade reconciliation panel — agreement/disagreement/gate-rejected/abstained
+percentages, plus a history of disagreements (which model picked what, with
+GLiNER's confidence). The label on the panel states the sampling bias
+outright: escalations are exactly the requests where GLiNER was least
+confident, so this measures agreement among its hardest cases, not overall
+accuracy. Reading it honestly takes two numbers: a high disagreement rate
+here says the fast path needs recalibration; a low one says the encoder is
+holding up on the cases that were hard for it.
+
 ## Quota & steering
 
 

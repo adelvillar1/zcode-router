@@ -203,5 +203,10 @@ export async function judgeViaFastino({ signals, cfg, envMap, R }) {
     return { workload: null, execution: null, workflow: null, followUp: null, conf: null, reason: "judge:fastino:error:unparseable-content", raw: String(content2 ?? "").slice(0, 200), ms: Date.now() - t0 };
   }
   const gated = gateFastinoVerdict(verdict, R);
-  return { ...gated, raw: String(content2).slice(0, 300), ms: Date.now() - t0 };
+  return {
+    ...gated,
+    rawVerdict: { workload: verdict.workload, execution: verdict.execution, workflow: verdict.workflow, followUp: verdict.followUp, conf: verdict.conf },
+    raw: String(content2).slice(0, 300),
+    ms: Date.now() - t0,
+  };
 }

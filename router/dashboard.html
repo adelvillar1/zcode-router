@@ -146,6 +146,13 @@
         <h2>Delegation mix</h2>
         <table id="execTable"></table>
         <div class="sub" style="margin-top:8px" id="judgeNote"></div>
+    <section class="panel hidden" id="cascadePanel">
+      <h2>Cascade reconciliation <span class="hint" id="cascadeMode"></span></h2>
+      <div class="sub" id="cascadeBias">Measured only on escalations — the sample where GLiNER was least confident. Not a fair poll by construction.</div>
+      <table id="cascadeTable"><thead><tr><th>Question</th><th class="n">Agree</th><th class="n">Disagree</th><th class="n">Agree %</th><th class="n">Gate-rejected</th><th class="n">Abstained</th></tr></thead><tbody></tbody></table>
+      <div class="sub" id="cascadeCounts" style="margin-top:8px"></div>
+      <table id="disagreeTable" style="margin-top:8px"><thead><tr><th>When</th><th>Question</th><th>GLiNER picked</th><th>TypeSafe picked</th><th class="n">GLiNER conf</th></tr></thead><tbody></tbody></table>
+    </section>
       </section>
       <section class="panel">
         <h2>Recent days</h2>
@@ -480,7 +487,8 @@ function renderUsage() {
     ? "judge backends: " + Object.entries(bk).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${fmtInt(v)}`).join(" · ") + " · "
     : "";
   const w = usage.workloads ?? {};
-  $("#judgeNote").textContent = backendTxt + "workloads: " + (Object.keys(w).length
+  renderCascade();
+    $("#judgeNote").textContent = backendTxt + "workloads: " + (Object.keys(w).length
     ? Object.entries(w).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${fmtInt(v)}`).join(" · ")
     : "none yet");
 
@@ -655,6 +663,30 @@ function renderProviders() {
       <td><input type="checkbox" data-prov="${esc(p.id)}" ${p.enabled ? "checked" : ""}></td>
       <td>${(p.models ?? []).map((m) => `<span class="chip">${esc(m)}</span>`).join("") || '<span class="dim">none registered</span>'}</td>
     </tr>`).join("");
+}
+
+/* ── render: cascade reconciliation ─────────────────────────── */
+function renderCascade() {
+  const c = usage?.cascade;
+  const mode = state?.judge?.mode ?? "typesafe";
+  const panel = $("#cascadePanel");
+  const relevant = mode !== "typesafe" || (c && (c.escalations > 0 || c.compared > 0));
+  panel.classList.toggle("hidden", !relevant);
+  if (!relevant) return;
+  $("#cascadeMode").textContent = `judge mode: ${mode}`;
+  const qs = c?.questions ?? {};
+  const rows = Object.entries(qs).map(([name, q]) => {
+    const decided = q.agree + q.disagree;
+    const pct = decided ? Math.round((q.agree / decided) * 100) + "%" : "—";
+    return `<tr><td class="mono-list">${esc(name)}</td><td class="n">${fmtInt(q.agree)}</td><td class="n">${fmtInt(q.disagree)}</td><td class="n">${pct}</td><td class="n">${fmtInt(q.gateRejected)}</td><td class="n">${fmtInt(q.abstain)}</td></tr>`;
+  });
+  $("#cascadeTable tbody").innerHTML = rows.join("");
+  $("#cascadeCounts").textContent = `escalations: ${fmtInt(c?.escalations ?? 0)} · compared: ${fmtInt(c?.compared ?? 0)} · cold: ${fmtInt(c?.cold ?? 0)} · failed: ${fmtInt(c?.failed ?? 0)} — cold and failed produce no GLiNER opinion, so they are counted but not compared`;
+  $("#disagreeTable tbody").innerHTML = (c?.disagreements ?? []).slice(0, 12).map((r) => `
+    <tr><td class="dim">${new Date(r.at).toLocaleString()}</td><td class="mono-list">${esc(r.question)}</td>
+    <td style="color:var(--warn)">${esc(r.fastino)}</td><td style="color:var(--ok)">${esc(r.typesafe)}</td>
+    <td class="n">${r.conf != null ? Math.round(r.conf * 100) + "%" : "—"}</td></tr>`).join("")
+    || `<tr><td colspan="5" class="dim">no disagreements recorded</td></tr>`;
 }
 
 /* ── render: quota ──────────────────────────────────────────── */

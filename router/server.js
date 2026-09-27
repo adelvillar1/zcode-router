@@ -323,7 +323,9 @@ async function runJudge(signals) {
     return { ...fast, reason: "judge:fastino" };
   }
   usage.recordJudgeBackend(fast.cold ? "escalated:cold" : "escalated");
-  return judgeWorkload(signals, "escalated");
+  const judged = await judgeWorkload(signals, "escalated");
+  usage.recordCascadeEscalation({ fast, judged, defaultWorkload: R.defaultWorkload ?? null });
+  return judged;
 }
 
 // ── routing decision ─────────────────────────────────────────────────────────
