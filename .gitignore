@@ -11,3 +11,6 @@ router/logs/
 # NOTE: roster.json IS committed (it holds apiKeyEnv references, never raw
 # keys). If you ever put a raw "apiKey" in the roster, `kit apply` warns and
 # you must add roster.json here.
+
+# personal publishing drafts — local only
+docs/social/
