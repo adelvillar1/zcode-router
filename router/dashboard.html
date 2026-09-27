@@ -475,8 +475,12 @@ function renderUsage() {
   ].map(([k, v]) => `<tr><td>${esc(k)}</td><td class="n">${fmtInt(v)}</td></tr>`).join("")
   + `<tr><td class="dim">/route verdicts (delegation decisions)</td><td class="n">${fmtInt((d.single ?? 0) + (d.mixture ?? 0) + (d.swarm ?? 0))}</td></tr>`
   + `<tr><td class="dim">verdicts that assigned a workflow</td><td class="n">${fmtInt(d.withWorkflow ?? 0)}</td></tr>`;
+  const bk = usage.judge?.backends ?? {};
+  const backendTxt = Object.keys(bk).length
+    ? "judge backends: " + Object.entries(bk).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${fmtInt(v)}`).join(" · ") + " · "
+    : "";
   const w = usage.workloads ?? {};
-  $("#judgeNote").textContent = "workloads: " + (Object.keys(w).length
+  $("#judgeNote").textContent = backendTxt + "workloads: " + (Object.keys(w).length
     ? Object.entries(w).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${fmtInt(v)}`).join(" · ")
     : "none yet");
 

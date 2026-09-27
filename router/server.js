@@ -32,6 +32,7 @@ import { TypeSafeClient, choice, noul } from "@typesafe-ai/sdk";
 import { createUsage, sseUsageTap } from "./usage.mjs";
 import { offpeakWeight, computeQuotaState, pickCandidate } from "./quota.mjs";
 import { suggestDelegation } from "./suggest.mjs";
+import { judgeViaFastino } from "./fastino.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const expand = (p) => (p.startsWith("~") ? path.join(os.homedir(), p.slice(1)) : p);
@@ -200,7 +201,7 @@ function typesafeKey() {
   return envFile().TYPESAFE_API_KEY || null;
 }
 
-async function judgeWorkload(signals) {
+async function judgeWorkload(signals, backend = "typesafe") {
   const key = typesafeKey();
   if (!key) return { workload: null, conf: null, reason: "judge:no-key" };
   try {
@@ -259,7 +260,7 @@ async function judgeWorkload(signals) {
       { state, questions, model: config.typesafeModel ?? "jev-1.13.0" },
       { timeout: 4000 }
     );
-    usage.recordJudge("fresh");
+    usage.recordJudge(backend);
     const answer = result?.answers?.workload;
     const workload = answer?.choice;
     const conf = (workload && answer?.probabilities?.[workload]) ?? 0;
@@ -298,6 +299,31 @@ async function judgeWorkload(signals) {
     usage.recordJudge("error");
     return { workload: null, execution: null, workflow: null, followUp: null, conf: null, reason: "judge:error:" + String(err?.message ?? err).slice(0, 80) };
   }
+}
+
+// ── judge backends ───────────────────────────────────────────────────────────
+// judge.mode picks who answers the four routing questions:
+//   typesafe (default) — TypeSafe Jev, unchanged behavior
+//   fastino            — Fastino GLiNER2.5 encoder, always
+//   cascade            — Fastino first; TypeSafe escalates when Fastino is
+//                        cold, erroring, or below the confidence gates
+// Both see the same compact state (latest instruction + counters). The
+// mixture's best-answer judge always stays on TypeSafe.
+async function runJudge(signals) {
+  const mode = config.judge?.mode ?? "typesafe";
+  if (mode === "typesafe") return judgeWorkload(signals);
+  const fast = await judgeViaFastino({ signals, cfg: config, envMap: envFile(), R });
+  const usable = fast.reason === "judge:fastino" && (fast.workload || fast.workflow);
+  if (mode === "fastino") {
+    usage.recordJudgeBackend(usable ? "fastino" : "failed");
+    return fast;
+  }
+  if (usable) {
+    usage.recordJudgeBackend("fastino");
+    return { ...fast, reason: "judge:fastino" };
+  }
+  usage.recordJudgeBackend(fast.cold ? "escalated:cold" : "escalated");
+  return judgeWorkload(signals, "escalated");
 }
 
 // ── routing decision ─────────────────────────────────────────────────────────
@@ -408,7 +434,7 @@ async function decide(signals) {
     }
     return { ...R.workloads[hit.workload], workload: hit.workload, execution: "single", workflow: cachedWorkflow, followUp: cachedFollowUp, conf: hit.conf, wfConf: hit.wfConf ?? null, reason: "cache" };
   }
-  const judged = await judgeWorkload(signals);
+  const judged = await runJudge(signals);
   const workload = judged.workload ?? R.defaultWorkload;
   workloadCache.set(signals.sessionKey, {
     workload,
@@ -521,7 +547,7 @@ async function judgeProposals(labeled, signals) {
       { state, questions, model: config.typesafeModel ?? "jev-1.13.0" },
       { timeout: 6000 }
     );
-    usage.recordJudge("fresh");
+    usage.recordJudge(backend);
     const bestAns = result?.answers?.best_answer;
     const mergeAns = result?.answers?.worth_merging;
     const best = labeled.some((l) => l.label === bestAns?.choice) ? bestAns.choice : labeled[0].label;
@@ -1038,6 +1064,69 @@ function markCooldown(pid, ms, status) {
 }
 
 // ── server ───────────────────────────────────────────────────────────────────
+async function handleRoute(res, raw) {
+  let body = {};
+  try {
+    body = JSON.parse(raw || "{}");
+  } catch {
+    body = {};
+  }
+  const msgs = Array.isArray(body.messages) && body.messages.length > 0
+    ? body.messages
+    : [{ role: "user", content: String(body.task ?? "") }];
+  const signals = analyze({ messages: msgs, model: body.model });
+  let target = await decide(signals);
+  target = steerSingle(target);
+  const defs = config.routing.workflows ?? [];
+  const plan = [target.workflow, target.followUp]
+    .map((n) => defs.find((w) => w.name === n))
+    .filter(Boolean)
+    .map((w, i) => ({
+      name: w.name,
+      args: {
+        [w.taskArg]:
+          i === 0
+            ? signals.lastUser
+            : `This is the SECOND stage of a two-stage request. Focus only on your stage's job; ` +
+              `the \`${target.workflow}\` stage is done and its deliverable is your starting point. ` +
+              `The original request was: ${signals.lastUser}`,
+        ...(w.defaults ?? {}),
+      },
+    }));
+  res.writeHead(200, { "Content-Type": "application/json" });
+  res.end(JSON.stringify({
+    workload: target.workload,
+    execution: target.kind === "mixture" ? (target.execution ?? "mixture") : (target.execution ?? "single"),
+    target: target.kind === "mixture" ? null : { providerId: target.providerId, model: target.model },
+    assignments: plan,
+    assignment: plan[0] ?? null,
+    conf: target.conf ?? null,
+    wfConf: target.wfConf ?? null,
+    reason: target.reason,
+  }));
+  log({
+    event: "route-verdict",
+    sessionKey: signals.sessionKey,
+    workload: target.workload,
+    execution: target.execution ?? "single",
+    workflow: plan.map((x) => x.name).join(" -> ") || null,
+    reason: target.reason,
+  });
+  usage.recordDelegation({
+    workload: target.workload,
+    execution: target.kind === "mixture" ? (target.execution ?? "mixture") : (target.execution ?? "single"),
+    workflows: plan.map((x) => x.name),
+  });
+  plan.forEach((p, i) =>
+    usage.recordWorkflowAssignment({
+      name: p.name,
+      stage: i === 0 ? "assigned" : "followUp",
+      conf: i === 0 ? target.wfConf ?? null : null,
+    })
+  );
+}
+
+
 const server = http.createServer((req, res) => {
   const auth = req.headers.authorization ?? "";
   const chunks = [];
@@ -1089,66 +1178,28 @@ const server = http.createServer((req, res) => {
     // requests decides whether a task deserves normal delegation (single),
     // MoA (mixture), or a multi-agent swarm. Body: {task} or {messages}.
     if (req.method === "POST" && (req.url === "/route" || req.url === "/v1/route")) {
-      let body = {};
       try {
-        body = JSON.parse(raw || "{}");
-      } catch {
-        body = {};
+        return await handleRoute(res, raw);
+      } catch (err) {
+        log({ event: "route-verdict", error: "handler:" + String(err?.stack ?? err).slice(0, 300) });
+        if (!res.writableEnded && !res.destroyed) {
+          res.writeHead(500, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: { message: "router: /route internal error" } }));
+        }
+        return;
       }
-      const msgs = Array.isArray(body.messages) && body.messages.length > 0
-        ? body.messages
-        : [{ role: "user", content: String(body.task ?? "") }];
-      const signals = analyze({ messages: msgs, model: body.model });
-      let target = await decide(signals);
-      target = steerSingle(target);
-      const defs = config.routing.workflows ?? [];
-      const plan = [target.workflow, target.followUp]
-        .map((n) => defs.find((w) => w.name === n))
-        .filter(Boolean)
-        .map((w, i) => ({
-          name: w.name,
-          args: {
-            [w.taskArg]:
-              i === 0
-                ? signals.lastUser
-                : `This is the SECOND stage of a two-stage request. Focus only on your stage's job; ` +
-                  `the \`${target.workflow}\` stage is done and its deliverable is your starting point. ` +
-                  `The original request was: ${signals.lastUser}`,
-            ...(w.defaults ?? {}),
-          },
-        }));
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({
-        workload: target.workload,
-        execution: target.kind === "mixture" ? (target.execution ?? "mixture") : (target.execution ?? "single"),
-        target: target.kind === "mixture" ? null : { providerId: target.providerId, model: target.model },
-        assignments: plan,
-        assignment: plan[0] ?? null,
-        conf: target.conf ?? null,
-        wfConf: target.wfConf ?? null,
-        reason: target.reason,
-      }));
-      log({
-        event: "route-verdict",
-        sessionKey: signals.sessionKey,
-        workload: target.workload,
-        execution: target.execution ?? "single",
-        workflow: plan.map((x) => x.name).join(" -> ") || null,
-        reason: target.reason,
-      });
-      usage.recordDelegation({
-        workload: target.workload,
-        execution: target.kind === "mixture" ? (target.execution ?? "mixture") : (target.execution ?? "single"),
-        workflows: plan.map((x) => x.name),
-      });
-      plan.forEach((p, i) =>
-        usage.recordWorkflowAssignment({
-          name: p.name,
-          stage: i === 0 ? "assigned" : "followUp",
-          conf: i === 0 ? target.wfConf ?? null : null,
-        })
-      );
-      return;
+    }
+    if (req.method === "POST" && (req.url === "/route" || req.url === "/v1/route")) {
+      try {
+        return await handleRoute(res, raw);
+      } catch (err) {
+        log({ event: "route-verdict", error: "handler:" + String(err?.stack ?? err).slice(0, 300) });
+        if (!res.writableEnded && !res.destroyed) {
+          res.writeHead(500, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: { message: "router: /route internal error" } }));
+        }
+        return;
+      }
     }
     if (req.method === "POST" && (req.url === "/v1/chat/completions" || req.url === "/chat/completions")) {
       let body;
@@ -1188,6 +1239,7 @@ const server = http.createServer((req, res) => {
           kitRoot: KIT_ROOT,
           rosterPath: ROSTER_PATH,
           typesafe: { model: config.typesafeModel ?? null, envFile: config.typesafeEnvFile ?? null, keyPresent: Boolean(typesafeKey()) },
+          judge: { mode: config.judge?.mode ?? "typesafe", model: config.judge?.fastino?.model ?? null },
           guard: {
             allowPayg: Boolean(roster?.allowPayg),
             paygProviders: roster ? Object.entries(roster.providers ?? {}).filter(([, p]) => (p.billing ?? "plan") === "payg").map(([id]) => id) : [],
@@ -1350,7 +1402,7 @@ const server = http.createServer((req, res) => {
 
 // A proxy should survive anything short of a disk fault; log and keep serving
 // (launchd KeepAlive restarts the process if it ever does exit).
-process.on("unhandledRejection", (err) => log({ event: "unhandledRejection", detail: String(err).slice(0, 200) }));
+process.on("unhandledRejection", (err) => log({ event: "unhandledRejection", detail: String(err?.stack ?? err).slice(0, 600) }));
 process.on("uncaughtException", (err) => log({ event: "uncaughtException", detail: String(err).slice(0, 200) }));
 // The usage ledger is the dashboard's whole history — never drop it on shutdown.
 for (const sig of ["SIGTERM", "SIGINT"]) {
@@ -1361,8 +1413,26 @@ for (const sig of ["SIGTERM", "SIGINT"]) {
 }
 process.on("exit", () => usage.flush());
 
+// GLiNER models cold-start behind Fastino with HTTP 425s that can last
+// minutes — unacceptable for the judge's fast path. When a non-typesafe
+// judge mode is on, ping periodically so the model stays warm; the ping is
+// a tiny schema and failures stay silent (the judge escalates anyway).
+const warmOnce = () => {
+  const mode = config.judge?.mode ?? "typesafe";
+  if (mode === "typesafe" || config.judge?.fastino?.keepWarm === false) return;
+  judgeViaFastino({
+    signals: { lastUser: "warm", messages: [{ role: "user", content: "warm" }], chars: 4, images: 0, toolDefs: 0 },
+    cfg: config, envMap: envFile(), R,
+  }).then((r) => {
+    log({ event: "judge-warm", status: r.cold ? "cold" : "warm", ms: r.ms ?? null });
+  }).catch(() => {});
+};
+const warmTimer = setInterval(warmOnce, 150_000);
+warmTimer.unref?.();
+
 server.listen(config.port, "127.0.0.1", () => {
   log({ event: "start", port: config.port });
   console.log(`zcode-model-router listening on 127.0.0.1:${config.port}`);
   console.log(`dashboard: http://127.0.0.1:${config.port}/dashboard`);
+  warmOnce();
 });

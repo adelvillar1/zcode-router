@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="628" viewBox="0 0 1200 628" font-family="-apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="h" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#58a6ff"/>
+    </marker>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#10192b"/>
+      <stop offset="1" stop-color="#0d1117"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="628" fill="url(#g)"/>
+  <rect x="24" y="24" width="1152" height="580" rx="14" fill="none" stroke="#2a313c"/>
+
+  <text x="60" y="84" font-size="15" fill="#6e7681" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">zcode-router-kit</text>
+
+  <text x="60" y="150" font-size="52" font-weight="700" fill="#e6edf3">Four prepaid plans.</text>
+  <text x="60" y="210" font-size="52" font-weight="700" fill="#58a6ff">One model: auto.</text>
+
+  <text x="60" y="258" font-size="19" fill="#8b949e">A local router that picks the right model per task —</text>
+  <text x="60" y="284" font-size="19" fill="#8b949e">quota-aware, failover built in, everything metered.</text>
+
+  <!-- mini flow -->
+  <g font-size="13">
+    <rect x="60" y="340" width="150" height="46" rx="8" fill="#161b22" stroke="#2a313c"/>
+    <text x="135" y="368" fill="#e6edf3" text-anchor="middle" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">roster.json</text>
+
+    <line x1="210" y1="363" x2="258" y2="363" stroke="#58a6ff" stroke-width="1.4" marker-end="url(#h)"/>
+
+    <rect x="262" y="340" width="130" height="46" rx="8" fill="#10192b" stroke="#4f8cc9"/>
+    <text x="327" y="368" fill="#58a6ff" text-anchor="middle" font-weight="600">kit apply</text>
+
+    <line x1="392" y1="363" x2="440" y2="363" stroke="#58a6ff" stroke-width="1.4" marker-end="url(#h)"/>
+
+    <rect x="444" y="340" width="160" height="46" rx="8" fill="#10192b" stroke="#4f8cc9"/>
+    <text x="524" y="368" fill="#e6edf3" text-anchor="middle" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">router :8300</text>
+
+    <line x1="604" y1="363" x2="652" y2="363" stroke="#58a6ff" stroke-width="1.4" marker-end="url(#h)"/>
+
+    <rect x="656" y="340" width="484" height="46" rx="8" fill="#161b22" stroke="#2a313c"/>
+    <text x="898" y="368" fill="#8b949e" text-anchor="middle">token-plan · stepfun · xiaomi-mimo · zai-coding-plan (GLM)</text>
+  </g>
+
+  <!-- chips -->
+  <g font-size="14">
+    <rect x="60" y="430" width="196" height="40" rx="20" fill="#12261a" stroke="#3fb950"/>
+    <text x="158" y="456" fill="#3fb950" text-anchor="middle">usage ledger</text>
+
+    <rect x="272" y="430" width="206" height="40" rx="20" fill="#1c2233" stroke="#58a6ff"/>
+    <text x="375" y="456" fill="#58a6ff" text-anchor="middle">quota steering</text>
+
+    <rect x="494" y="430" width="238" height="40" rx="20" fill="#1c2233" stroke="#58a6ff"/>
+    <text x="613" y="456" fill="#58a6ff" text-anchor="middle">failover + cooldowns</text>
+
+    <rect x="748" y="430" width="230" height="40" rx="20" fill="#1c2233" stroke="#58a6ff"/>
+    <text x="863" y="456" fill="#58a6ff" text-anchor="middle">mixture-of-agents</text>
+
+    <rect x="994" y="430" width="146" height="40" rx="20" fill="#1c2233" stroke="#58a6ff"/>
+    <text x="1067" y="456" fill="#58a6ff" text-anchor="middle">thinking levels</text>
+  </g>
+
+  <!-- footnote -->
+  <text x="60" y="530" font-size="15" fill="#8b949e">The judge answers four questions per task: which tier, which execution style,</text>
+  <text x="60" y="552" font-size="15" fill="#8b949e">which workflow runs first — and which one follows. Fail-open, always.</text>
+
+  <text x="1140" y="84" font-size="13" fill="#3fb950" text-anchor="end" font-family="ui-monospace, 'SF Mono', Menlo, Consolas, monospace">127.0.0.1 only</text>
+</svg>

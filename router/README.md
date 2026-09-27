@@ -204,7 +204,55 @@ resynced before the error reaches the UI. Two fields are not dashboard-editable
 on purpose: the router identity (`port` / `localToken`) — changing the port
 there would desync the running service definition — and the schema version.
 
+## Judge backends (TypeSafe / GLiNER2.5)
+
+The four routing questions (workload, execution style, workflow, follow-up)
+can be answered by either of two backends, picked with a roster block:
+
+```json
+"judge": {
+  "mode": "cascade",             // typesafe (default) | fastino | cascade
+  "fastino": {
+    "model": "fastino/gliner2.5-multi-v1",
+    "apiKeyEnv": "FASTINO_API_KEY",
+    "timeoutMs": 2500,
+    "keepWarm": true
+  }
+}
+```
+
+- `typesafe` — the default, unchanged: TypeSafe Jev answers all four
+  questions, 1–3s on the first request of a task, then cached.
+- `fastino` — Fastino's hosted GLiNER2.5 encoder (`api.fastino.ai`,
+  OpenAI-compatible endpoint with a `schema.classifications` extension)
+  answers all four questions in a single encoder forward pass: tens of
+  milliseconds instead of seconds, and no TypeSafe dependency. Both backends
+  see the same compact state (latest instruction plus counters).
+- `cascade` — the recommended mode: GLiNER2.5 first, and TypeSafe escalates
+  whenever the encoder is cold, erroring, or below the confidence gates.
+  Escalations are counted separately so the handoff stays visible.
+
+Three operational facts shape this:
+
+- **Cold starts are long.** Fastino answers HTTP 425 `model_warming` for
+  minutes before a model is usable. The router never waits inline: a 425
+  fails over to TypeSafe immediately, and while any non-typesafe judge mode
+  is on, the router pings the model every 150s to keep it warm
+  (`judge:fastino.keepWarm`, default on).
+- **The mixture's best-answer judge stays TypeSafe** in every mode. Comparing
+  three long answers for correctness is reasoning work; a 340M encoder
+  ranking them would be a quality risk for the marquee feature.
+- **Privacy posture changes with the backend.** Both backends receive the
+  latest instruction text plus counters, never the conversation or files —
+  but with `fastino` or `cascade`, that instruction goes to Fastino's API
+  instead of (or before) TypeSafe's.
+
+Per-backend judgment counts land in the ledger and show on the Usage tab
+(`typesafe · fastino · escalated`), so the cascade's handoff rate is visible,
+not assumed.
+
 ## Quota & steering
+
 
 <p align="center">
   <img src="../docs/img/quota.svg" alt="Quota flow: the ledger meters off-peak-weighted spend into hourly buckets, console readings calibrate the allowance, and headroom drives steering, failover, and the dashboard panel" width="1080">

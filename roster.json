@@ -315,5 +315,15 @@
       },
       "providerId": "xiaomi-mimo"
     }
-  ]
+  ],
+  "judge": {
+    "note": "who answers the four routing questions. typesafe = TypeSafe Jev (default). fastino = GLiNER2.5 encoder via api.fastino.ai, always. cascade = GLiNER2.5 first, TypeSafe escalates when it is cold, erroring, or below the confidence gates. The mixture's best-answer judge stays TypeSafe either way.",
+    "mode": "cascade",
+    "fastino": {
+      "model": "fastino/gliner2.5-multi-v1",
+      "apiKeyEnv": "FASTINO_API_KEY",
+      "timeoutMs": 2500,
+      "keepWarm": true
+    }
+  }
 }

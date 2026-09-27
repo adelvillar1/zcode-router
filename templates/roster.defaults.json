@@ -337,5 +337,15 @@
     "note": "optional 1-5 per model, higher = stronger. Feeds the distribution suggester (hard tier and mixture aggregator); models without one rank neutral. Same shape lives in roster.json.",
     "zai-coding-plan/GLM-5.3-Flash": 5,
     "xiaomi-mimo/mimo-v2.6-pro": 4
+  },
+  "judge": {
+    "note": "who answers the four routing questions. typesafe = TypeSafe Jev (default). fastino = GLiNER2.5 encoder via api.fastino.ai, always. cascade = GLiNER2.5 first, TypeSafe escalates when it is cold, erroring, or below the confidence gates. The mixture's best-answer judge stays TypeSafe either way.",
+    "mode": "cascade",
+    "fastino": {
+      "model": "fastino/gliner2.5-multi-v1",
+      "apiKeyEnv": "FASTINO_API_KEY",
+      "timeoutMs": 2500,
+      "keepWarm": true
+    }
   }
 }

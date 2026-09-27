@@ -38,7 +38,7 @@ function emptyState() {
     workloads: {}, // workload name -> call count
     workflowStats: {}, // workflow name -> { assigned, followUp, lastAt, lastConf }
     delegations: { single: 0, mixture: 0, swarm: 0, withWorkflow: 0 }, // /route verdicts
-    judge: { fresh: 0, cached: 0, errors: 0 },
+    judge: { fresh: 0, cached: 0, errors: 0, backends: {} },
     failedRequests: 0,
     recent: [], // newest first, capped
   };
@@ -192,12 +192,20 @@ export function createUsage({ file, weightOf } = {}) {
     touch();
   }
 
-  /** Judge activity: fresh TypeSafe judgments vs session-cache hits. */
+  /** Judge activity: fresh judgments vs session-cache hits. */
   function recordJudge(kind) {
     state.bootAt ??= Date.now();
     if (kind === "fresh") state.judge.fresh += 1;
     else if (kind === "cached") state.judge.cached += 1;
     else state.judge.errors += 1;
+    touch();
+  }
+
+  /** Which backend produced the judgment: typesafe / fastino / escalated. */
+  function recordJudgeBackend(backend) {
+    state.bootAt ??= Date.now();
+    state.judge.backends ??= {};
+    state.judge.backends[backend] = (state.judge.backends[backend] ?? 0) + 1;
     touch();
   }
 
@@ -288,8 +296,13 @@ export function createUsage({ file, weightOf } = {}) {
       const raw = JSON.parse(fs.readFileSync(file, "utf8"));
       if (!raw || typeof raw !== "object") return;
       for (const k of ["startedAt", "byModel", "byDay", "hourly", "cumWeighted", "executions", "workloads", "workflowStats", "delegations", "judge", "failedRequests", "recent"]) {
-        if (raw[k] !== undefined) state[k] = raw[k];
+        if (raw[k] === undefined) continue;
+        // judge gained fields over time (backends) — merge so a ledger written
+        // by an older router does not wipe new counters.
+        if (k === "judge") state.judge = { ...state.judge, ...raw.judge };
+        else state[k] = raw[k];
       }
+      state.judge.backends ??= {};
       state.bootAt = Date.now();
       prune();
     } catch {}
@@ -297,7 +310,7 @@ export function createUsage({ file, weightOf } = {}) {
 
   load();
 
-  return { record, recordDelegation, recordWorkflowAssignment, recordJudge, snapshot, reset, flush, hourly, cumulativeWeighted };
+  return { record, recordDelegation, recordWorkflowAssignment, recordJudge, recordJudgeBackend, snapshot, reset, flush, hourly, cumulativeWeighted };
 }
 
 /**
