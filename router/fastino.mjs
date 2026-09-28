@@ -3,18 +3,20 @@
  *
  * sys1 (the standalone decision-model library) is the one fastino
  * integration. This module POSTs the routing questions to the sys1 service's
- * /v1/classify as an inline task_spec, and sys1's `local` provider runs
- * fastino/GLiNER2.5-Decide through the vendor-prescribed classification API
- * (gliner2.classification: one decode for all four questions, full
- * probabilities, confidence = max). TypeSafe stays as the escalation for low
+ * /v1/classify as an inline task_spec, and sys1's `decide` provider — the
+ * hosted Fastino API — answers with fastino/GLiNER2.5-Decide: one fan-out
+ * call, full probabilities, confidence = max. TypeSafe stays as the escalation for low
  * confidence (cascade mode) and as the mixture's best-answer judge, where
  * comparing three long answers is reasoning work an encoder should not do.
  *
  * Judge endpoint config (cfg.judge.fastino):
  *   baseUrl   — sys1 service base URL (default http://127.0.0.1:8400)
  *   apiKeyEnv — bearer-token env var read from the router .env (default
- *               SYS1_BEARER_TOKEN; a service without a token set is open)
- *   provider  — sys1 provider id (default "local": offline, free, no API key)
+ *               SYS1_BEARER_TOKEN; a service without a token set is open).
+ *               The sys1 service itself needs FASTINO_API_KEY in its env.
+ *   provider  — sys1 provider id (default "decide": the hosted Fastino API;
+ *               per the 2026-09-28 policy, fastino + jev are the only active
+ *               providers — local is supported by design, not encouraged)
  *   task      — registered task name to use INSTEAD of the inline task_spec
  *               (default unset; see sys1 examples/routing-judge.toml)
  *   timeoutMs — fetch timeout (default 2500)
@@ -24,9 +26,10 @@
  * (the workflow names are per-install config, not fixed vocabulary).
  *
  * Reason strings keep the judge:fastino:* prefix for log continuity with the
- * previous hosted implementation. The hosted wire's operational quirk — HTTP
- * 425 model_warming cold starts — does not apply: the local model is always
- * warm. Service-down surfaces as judge:fastino:unreachable and the caller's
+ * previous direct-hosted implementation (which called api.fastino.ai with
+ * the multi-v1 model). Operational quirks — HTTP 425 model_warming cold
+ * starts, 429/5xx — are absorbed by sys1's http core (retry with backoff).
+ * Service-down surfaces as judge:fastino:unreachable and the caller's
  * fail-open path handles it, same as before. The old hosted parser
  * (parseFastinoVerdict) is retained for compatibility with recorded hosted
  * responses but is no longer on the live path.
@@ -193,7 +196,7 @@ export async function judgeViaFastino({ signals, cfg, envMap, R }) {
   const blank = { workload: null, execution: null, workflow: null, followUp: null, conf: null };
   const apiKey = envMap[judgeCfg.apiKeyEnv ?? "SYS1_BEARER_TOKEN"] ?? null;
   const baseUrl = (judgeCfg.baseUrl ?? "http://127.0.0.1:8400").replace(/\/+$/, "");
-  const provider = judgeCfg.provider ?? "local";
+  const provider = judgeCfg.provider ?? "decide"; // hosted Fastino API — the active fastino provider
 
   const content =
     `${signals.lastUser}\n\n` +
