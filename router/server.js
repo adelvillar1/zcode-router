@@ -201,7 +201,7 @@ function typesafeKey() {
   return envFile().TYPESAFE_API_KEY || null;
 }
 
-async function judgeWorkload(signals, backend = "typesafe") {
+async function judgeWorkload(signals) {
   const key = typesafeKey();
   if (!key) return { workload: null, conf: null, reason: "judge:no-key" };
   try {
@@ -260,7 +260,8 @@ async function judgeWorkload(signals, backend = "typesafe") {
       { state, questions, model: config.typesafeModel ?? "jev-1.13.0" },
       { timeout: 4000 }
     );
-    usage.recordJudge(backend);
+    usage.recordJudge("fresh");
+    usage.recordJudgeBackend("typesafe");
     const answer = result?.answers?.workload;
     const workload = answer?.choice;
     const conf = (workload && answer?.probabilities?.[workload]) ?? 0;
@@ -323,7 +324,7 @@ async function runJudge(signals) {
     return { ...fast, reason: "judge:fastino" };
   }
   usage.recordJudgeBackend(fast.cold ? "escalated:cold" : "escalated");
-  const judged = await judgeWorkload(signals, "escalated");
+  const judged = await judgeWorkload(signals);
   usage.recordCascadeEscalation({ fast, judged, defaultWorkload: R.defaultWorkload ?? null });
   return judged;
 }
@@ -549,7 +550,8 @@ async function judgeProposals(labeled, signals) {
       { state, questions, model: config.typesafeModel ?? "jev-1.13.0" },
       { timeout: 6000 }
     );
-    usage.recordJudge(backend);
+    usage.recordJudge("fresh");
+    usage.recordJudgeBackend("typesafe");
     const bestAns = result?.answers?.best_answer;
     const mergeAns = result?.answers?.worth_merging;
     const best = labeled.some((l) => l.label === bestAns?.choice) ? bestAns.choice : labeled[0].label;
