@@ -213,39 +213,47 @@ can be answered by either of two backends, picked with a roster block:
 "judge": {
   "mode": "cascade",             // typesafe (default) | fastino | cascade
   "fastino": {
-    "model": "fastino/gliner2.5-multi-v1",
-    "apiKeyEnv": "FASTINO_API_KEY",
-    "timeoutMs": 2500,
-    "keepWarm": true
+    "baseUrl": "http://127.0.0.1:8400",
+    "apiKeyEnv": "SYS1_BEARER_TOKEN",
+    "provider": "local",
+    "timeoutMs": 2500
   }
 }
 ```
 
 - `typesafe` — the default, unchanged: TypeSafe Jev answers all four
   questions, 1–3s on the first request of a task, then cached.
-- `fastino` — Fastino's hosted GLiNER2.5 encoder (`api.fastino.ai`,
-  OpenAI-compatible endpoint with a `schema.classifications` extension)
-  answers all four questions in a single encoder forward pass: tens of
-  milliseconds instead of seconds, and no TypeSafe dependency. Both backends
-  see the same compact state (latest instruction plus counters).
+- `fastino` — **served by [sys1](https://github.com/adelvillar1/sys1)**, the
+  standalone decision-model library that owns the one fastino integration.
+  The router POSTs the four questions to the sys1 service's `/v1/classify`
+  as an inline `task_spec` built from this install's own workload/workflow
+  names, and sys1's `local` provider runs `fastino/GLiNER2.5-Decide` through
+  the vendor-prescribed classification API (gliner2.classification: one
+  decode for all four questions, full probabilities, confidence = max).
+  Local, offline, no vendor API key; ~150–400ms per judgment through a
+  running classifier server. Run the sys1 service (`uvicorn service.main:app
+  --port 8400`) plus its classifier server (`service/classifier_server.py`
+  inside the gliner venv; see sys1's README "Serving the local fastino
+  wire"). `apiKeyEnv` names the bearer-token variable in the router .env —
+  omit it for a token-less service. Set `task` to a registered sys1 task
+  name to skip the inline spec.
 - `cascade` — the recommended mode: GLiNER2.5 first, and TypeSafe escalates
-  whenever the encoder is cold, erroring, or below the confidence gates.
-  Escalations are counted separately so the handoff stays visible.
+  whenever the encoder errors, is unreachable, or sits below the confidence
+  gates. Escalations are counted separately so the handoff stays visible.
 
 Three operational facts shape this:
 
-- **Cold starts are long.** Fastino answers HTTP 425 `model_warming` for
-  minutes before a model is usable. The router never waits inline: a 425
-  fails over to TypeSafe immediately, and while any non-typesafe judge mode
-  is on, the router pings the model every 150s to keep it warm
-  (`judge:fastino.keepWarm`, default on).
+- **Cold starts are gone.** The encoder runs locally and stays loaded (the
+  old hosted path answered HTTP 425 `model_warming` for minutes; that story
+  is history). The 150s keep-alive ping is now a harmless health probe —
+  set `judge:fastino.keepWarm: false` to silence it.
 - **The mixture's best-answer judge stays TypeSafe** in every mode. Comparing
   three long answers for correctness is reasoning work; a 340M encoder
   ranking them would be a quality risk for the marquee feature.
-- **Privacy posture changes with the backend.** Both backends receive the
+- **Privacy posture improves with the backend.** Both backends receive the
   latest instruction text plus counters, never the conversation or files —
-  but with `fastino` or `cascade`, that instruction goes to Fastino's API
-  instead of (or before) TypeSafe's.
+  and with `fastino` or `cascade`, that instruction now stays on the local
+  sys1 service instead of going to a vendor API.
 
 Per-backend judgment counts land in the ledger and show on the Usage tab
 (`typesafe · fastino · escalated`), so the cascade's handoff rate is visible,

@@ -281,9 +281,10 @@ as `judge:no-key`, `judge:error:…`, or `judge:low-confidence`. A TypeSafe outa
 makes routing slower or lazier; it never fails a request.
 
 The judge is also pluggable. `judge.mode` picks the backend: `typesafe` (the
-default, as above), `fastino` (Fastino's hosted GLiNER2.5 encoder answers all
-four questions in one forward pass — tens of milliseconds, no TypeSafe
-dependency), or `cascade` (recommended: GLiNER2.5 first, TypeSafe escalates
+default, as above), `fastino` (a GLiNER2.5 encoder served locally by the
+[sys1](https://github.com/adelvillar1/sys1) service answers all four
+questions in one forward pass — tens of milliseconds, no TypeSafe
+dependency, no vendor API call), or `cascade` (recommended: GLiNER2.5 first, TypeSafe escalates
 when the encoder is cold, erroring, or below the confidence gates). Per-backend
 counts land in the usage ledger so the handoff rate is measured, not assumed.
 Details and the cold-start story: [router/README.md](router/README.md#judge-backends-typesafe--gliner25).

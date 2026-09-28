@@ -1,22 +1,35 @@
 /**
- * Fastino GLiNER2.5 judge backend — a local-cost alternative to the TypeSafe
- * judge for the four routing questions.
+ * Fastino GLiNER2.5 judge backend — served by sys1.
  *
- * Fastino serves the GLiNER2.5 encoder family behind an OpenAI-compatible
- * chat endpoint with a schema extension: schema.classifications maps question
- * names to option arrays, and include_confidence asks for per-answer
- * confidence. An encoder does one forward pass for all questions, so this is
- * the fast path; TypeSafe stays as the escalation for low confidence (cascade
- * mode) and as the mixture's best-answer judge, where comparing three long
- * answers is reasoning work an encoder should not do.
+ * sys1 (the standalone decision-model library) is the one fastino
+ * integration. This module POSTs the routing questions to the sys1 service's
+ * /v1/classify as an inline task_spec, and sys1's `local` provider runs
+ * fastino/GLiNER2.5-Decide through the vendor-prescribed classification API
+ * (gliner2.classification: one decode for all four questions, full
+ * probabilities, confidence = max). TypeSafe stays as the escalation for low
+ * confidence (cascade mode) and as the mixture's best-answer judge, where
+ * comparing three long answers is reasoning work an encoder should not do.
  *
- * Two operational quirks discovered by probing (2026-09-26):
- *  - Models cold-start: before the first (or first-after-idle) call the API
- *    answers HTTP 425 "model_warming" for up to minutes. Treat 425 as its own
- *    fast failure (never wait it out inline) and let the server's keepalive
- *    warmer absorb it.
- *  - Content is a JSON string whose exact shape has varied; the parser below
- *    accepts every shape observed or plausible and fails open otherwise.
+ * Judge endpoint config (cfg.judge.fastino):
+ *   baseUrl   — sys1 service base URL (default http://127.0.0.1:8400)
+ *   apiKeyEnv — bearer-token env var read from the router .env (default
+ *               SYS1_BEARER_TOKEN; a service without a token set is open)
+ *   provider  — sys1 provider id (default "local": offline, free, no API key)
+ *   task      — registered task name to use INSTEAD of the inline task_spec
+ *               (default unset; see sys1 examples/routing-judge.toml)
+ *   timeoutMs — fetch timeout (default 2500)
+ *
+ * The task_spec is built from this install's own workload/workflow names by
+ * default, so the model always sees the labels the router actually routes to
+ * (the workflow names are per-install config, not fixed vocabulary).
+ *
+ * Reason strings keep the judge:fastino:* prefix for log continuity with the
+ * previous hosted implementation. The hosted wire's operational quirk — HTTP
+ * 425 model_warming cold starts — does not apply: the local model is always
+ * warm. Service-down surfaces as judge:fastino:unreachable and the caller's
+ * fail-open path handles it, same as before. The old hosted parser
+ * (parseFastinoVerdict) is retained for compatibility with recorded hosted
+ * responses but is no longer on the live path.
  */
 const EXECUTIONS = ["single", "mixture", "swarm"];
 
@@ -38,6 +51,7 @@ function envFile(file) {
  * Pull a {value, confidence} pair out of whatever a classification answer
  * looks like. Tolerates: plain string, {answer|value|choice|label},
  * {answer, confidence}, {value, score}, and wrapping objects one level deep.
+ * (Legacy — used by parseFastinoVerdict for recorded hosted responses.)
  */
 function readAnswer(v) {
   if (v == null) return null;
@@ -59,9 +73,11 @@ function readAnswer(v) {
 }
 
 /**
- * Parse the completion content into the same shape judgeWorkload returns:
- * { workload, execution, workflow, followUp, conf, execConf, wfConf, reason }.
- * Returns null (never throws) when nothing usable is found.
+ * LEGACY: parse a hosted chat-completions classification content string into
+ * the judge verdict shape. Not on the live path (the live path reads sys1's
+ * structured answers directly in answersToVerdict below); kept so recorded
+ * hosted responses and old replay tooling still parse. Returns null (never
+ * throws) when nothing usable is found.
  */
 export function parseFastinoVerdict(content) {
   if (typeof content !== "string" || !content.trim()) return null;
@@ -134,19 +150,50 @@ export function gateFastinoVerdict(verdict, R) {
 }
 
 /**
- * Judge via Fastino. Same return contract as judgeWorkload, plus raw for
- * debug logs. Throws on HTTP/transport failure so the caller's fail-open
- * path handles it — except 425 (model cold), which returns a soft
- * low-confidence verdict so cascade mode escalates to TypeSafe immediately.
+ * Map sys1's per-head answers ({head: {label, confidence, probabilities}})
+ * to the judge verdict shape. Same rules as the legacy parser: null when
+ * neither workload nor workflow produced an answer (never throws).
+ */
+function answersToVerdict(answers) {
+  const pick = (head) => {
+    const a = answers[head];
+    if (!a || typeof a !== "object") return null;
+    const label = a.label ?? null;
+    if (label == null) return null;
+    return { value: String(label), confidence: Number.isFinite(a.confidence) ? a.confidence : null };
+  };
+  const workload = pick("workload");
+  const execution = pick("execution");
+  const workflow = pick("workflow");
+  const followUp = pick("followUp");
+  if (!workload && !workflow) return null;
+  const conf = workload?.confidence ?? null;
+  const execConf = execution?.confidence ?? conf ?? null;
+  const wfConf = workflow?.confidence ?? conf ?? null;
+  return {
+    workload: workload?.value ?? null,
+    execution: execution?.value ?? null,
+    workflow: workflow?.value ?? null,
+    followUp: followUp?.value ?? null,
+    conf,
+    execConf,
+    wfConf,
+    reason: "judge:fastino",
+  };
+}
+
+/**
+ * Judge via sys1's local fastino Decide provider. Same return contract as
+ * judgeWorkload, plus raw for debug logs. Never throws on HTTP/transport
+ * failure — returns a blank low-confidence verdict with a judge:fastino:*
+ * reason so the caller's fail-open path handles it, same as before.
  */
 export async function judgeViaFastino({ signals, cfg, envMap, R }) {
   const judgeCfg = cfg.judge?.fastino ?? {};
-  const apiKey = envMap[judgeCfg.apiKeyEnv ?? "FASTINO_API_KEY"] ?? null;
-  const model = judgeCfg.model ?? "fastino/gliner2.5-multi-v1";
-  const baseUrl = (judgeCfg.baseUrl ?? "https://api.fastino.ai/v1").replace(/\/+$/, "");
-  if (!apiKey) {
-    return { workload: null, execution: null, workflow: null, followUp: null, conf: null, reason: "judge:fastino:no-key" };
-  }
+  const blank = { workload: null, execution: null, workflow: null, followUp: null, conf: null };
+  const apiKey = envMap[judgeCfg.apiKeyEnv ?? "SYS1_BEARER_TOKEN"] ?? null;
+  const baseUrl = (judgeCfg.baseUrl ?? "http://127.0.0.1:8400").replace(/\/+$/, "");
+  const provider = judgeCfg.provider ?? "local";
 
   const content =
     `${signals.lastUser}\n\n` +
@@ -154,59 +201,66 @@ export async function judgeViaFastino({ signals, cfg, envMap, R }) {
     `${signals.images} image(s), ${signals.toolDefs} tool definitions`;
 
   const wfNames = (R.workflows ?? []).map((w) => w.name);
-  const schema = {
-    classifications: {
-      workload: Object.keys(R.workloads ?? {}),
-      execution: EXECUTIONS,
-      workflow: [...wfNames, "none"],
-      followUp: [...wfNames, "none"],
-    },
-  };
+  let task = judgeCfg.task ?? null;
+  let taskSpec = null;
+  if (!task) {
+    const heads = [
+      { id: "workload", kind: "choice", task: "Which workload does this user turn belong to?", labels: Object.keys(R.workloads ?? {}) },
+      { id: "execution", kind: "choice", task: "How should this turn execute?", labels: [...EXECUTIONS] },
+      { id: "workflow", kind: "choice", task: "Which named workflow fits this turn, if any? Answer none when no workflow applies.", labels: [...wfNames, "none"] },
+      { id: "followUp", kind: "choice", task: "Which workflow should the NEXT turn run, if any? Answer none when nothing should follow up.", labels: [...wfNames, "none"] },
+    ].filter((h) => h.labels.length >= 2);
+    if (!heads.length) {
+      return { ...blank, reason: "judge:fastino:no-heads", raw: null, ms: 0 };
+    }
+    taskSpec = {
+      id: "routing_judge",
+      description: "Route a user turn: workload, execution mode, workflow, follow-up.",
+      heads,
+    };
+  }
+
+  const body = { provider, text: content, log: false };
+  if (task) body.task = task;
+  else body.task_spec = taskSpec;
+
+  const headers = { "Content-Type": "application/json" };
+  if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
 
   const t0 = Date.now();
   let res;
   try {
-    res = await fetch(`${baseUrl}/chat/completions`, {
+    res = await fetch(`${baseUrl}/v1/classify`, {
       method: "POST",
-      headers: { "X-API-Key": apiKey, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model,
-        messages: [{ role: "user", content }],
-        schema,
-        include_confidence: true,
-      }),
+      headers,
+      body: JSON.stringify(body),
       signal: AbortSignal.timeout(judgeCfg.timeoutMs ?? 2500),
     });
   } catch (err) {
-    return { workload: null, execution: null, workflow: null, followUp: null, conf: null, reason: "judge:fastino:error:" + String(err?.message ?? err).slice(0, 80), raw: null, ms: Date.now() - t0 };
+    return { ...blank, reason: "judge:fastino:unreachable:" + String(err?.message ?? err).slice(0, 80), raw: null, ms: Date.now() - t0 };
   }
 
-  if (res.status === 425) {
-    // Model cold: never wait it out inline. The caller escalates and the
-    // keepalive warmer handles bringing the model back.
-    return { workload: null, execution: null, workflow: null, followUp: null, conf: null, cold: true, reason: "judge:fastino:cold", raw: null, ms: Date.now() - t0 };
-  }
   if (!res.ok) {
     const detail = await res.text().catch(() => "");
-    return { workload: null, execution: null, workflow: null, followUp: null, conf: null, reason: `judge:fastino:error:http-${res.status}`, raw: detail.slice(0, 200), ms: Date.now() - t0 };
+    return { ...blank, reason: `judge:fastino:error:http-${res.status}`, raw: detail.slice(0, 200), ms: Date.now() - t0 };
   }
 
-  let content2 = null;
+  let d = null;
   try {
-    const d = await res.json();
-    content2 = d?.choices?.[0]?.message?.content ?? null;
+    d = await res.json();
   } catch (err) {
-    return { workload: null, execution: null, workflow: null, followUp: null, conf: null, reason: "judge:fastino:error:unparseable-response", raw: null, ms: Date.now() - t0 };
+    return { ...blank, reason: "judge:fastino:error:unparseable-response", raw: null, ms: Date.now() - t0 };
   }
-  const verdict = parseFastinoVerdict(content2);
+  const answers = d?.answers?.[provider] ?? {};
+  const verdict = answersToVerdict(answers);
   if (!verdict) {
-    return { workload: null, execution: null, workflow: null, followUp: null, conf: null, reason: "judge:fastino:error:unparseable-content", raw: String(content2 ?? "").slice(0, 200), ms: Date.now() - t0 };
+    return { ...blank, reason: "judge:fastino:error:no-answers", raw: JSON.stringify(answers ?? {}).slice(0, 200), ms: Date.now() - t0 };
   }
   const gated = gateFastinoVerdict(verdict, R);
   return {
     ...gated,
     rawVerdict: { workload: verdict.workload, execution: verdict.execution, workflow: verdict.workflow, followUp: verdict.followUp, conf: verdict.conf },
-    raw: String(content2).slice(0, 300),
+    raw: JSON.stringify(answers).slice(0, 300),
     ms: Date.now() - t0,
   };
 }
