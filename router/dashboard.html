@@ -406,7 +406,7 @@ async function refreshUsage() {
 function knownTargets() {
   const set = new Set();
   const add = (t) => { if (typeof t === "string" && /^[^/\s]+\/[^/\s]+$/.test(t)) set.add(t); };
-  for (const p of Object.values(state?.roster?.providers ?? {})) for (const m of p.models ?? []) add(`${p.id}/${m}`);
+  for (const [pid, p] of Object.entries(state?.roster?.providers ?? {})) for (const m of p.models ?? []) add(`${pid}/${m}`);
   const r = roster ?? {};
   for (const t of Object.values(r.tiers ?? {})) { add(t?.target); for (const f of t?.fallbacks ?? []) add(f); }
   for (const k of ["omniModel", "wideModel"]) for (const t of [].concat(r[k] ?? [])) add(t);
@@ -416,7 +416,10 @@ function knownTargets() {
   for (const w of Object.values(state?.resolved?.workloads ?? {})) { add(`${w.providerId}/${w.model}`); }
   return set;
 }
-function providerExists(id) { return Boolean(state?.roster?.providers?.[id]); }
+function providerExists(id) {
+  // /api/state returns the FULL roster — providers keyed by id.
+  return Boolean((state?.roster?.providers ?? {})[id]);
+}
 function targetProblem(t) {
   if (!/^[^/\s]+\/[^/\s]+$/.test(t ?? "")) return "want providerId/modelId";
   if (!providerExists((t ?? "").split("/")[0])) return "unknown provider";
@@ -654,13 +657,13 @@ function renderWorkflows() {
 
 /* ── render: providers ──────────────────────────────────────── */
 function renderProviders() {
-  const list = state?.roster?.providers ?? [];
-  $("#providersTable tbody").innerHTML = list.map((p) => `
+  const entries = Object.entries(state?.roster?.providers ?? {});
+  $("#providersTable tbody").innerHTML = entries.map(([id, p]) => `
     <tr>
-      <td><div>${esc(p.providerName)}</div><div class="hint mono-list">${esc(p.id)}</div></td>
-      <td><span class="badge ${esc(p.billing)}">${esc(p.billing)}</span>${p.routerOnly ? ' <span class="badge ro">router-only</span>' : ""}</td>
+      <td><div>${esc(p.providerName ?? id)}</div><div class="hint mono-list">${esc(id)}</div></td>
+      <td><span class="badge ${esc(p.billing ?? "plan")}">${esc(p.billing ?? "plan")}</span>${p.routerOnly ? ' <span class="badge ro">router-only</span>' : ""}</td>
       <td class="mono-list" style="color:${p.hasKey ? "var(--ok)" : "var(--err)"}">${p.hasKey ? "✓" : "✗"} <span class="dim">${esc(p.apiKeyEnv ?? "inline")}</span></td>
-      <td><input type="checkbox" data-prov="${esc(p.id)}" ${p.enabled ? "checked" : ""}></td>
+      <td><input type="checkbox" data-prov="${esc(id)}" ${p.enabled !== false ? "checked" : ""}></td>
       <td>${(p.models ?? []).map((m) => `<span class="chip">${esc(m)}</span>`).join("") || '<span class="dim">none registered</span>'}</td>
     </tr>`).join("");
 }

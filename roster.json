@@ -26,7 +26,10 @@
         "deepseek-flash",
         "deepseek-v4-pro"
       ],
-      "featured": []
+      "featured": [],
+      "id": "deepseek",
+      "enabled": true,
+      "hasKey": true
     },
     "xiaomi-mimo": {
       "providerName": "Xiaomi MiMo",
@@ -43,7 +46,10 @@
       "featured": [
         "mimo-v2.6-pro",
         "mimo-v2.6-flash"
-      ]
+      ],
+      "id": "xiaomi-mimo",
+      "enabled": true,
+      "hasKey": true
     },
     "token-plan": {
       "providerName": "Token Plan (Alibaba)",
@@ -55,7 +61,10 @@
       ],
       "featured": [
         "qwen3.8-flash"
-      ]
+      ],
+      "id": "token-plan",
+      "enabled": true,
+      "hasKey": true
     },
     "stepfun": {
       "providerName": "StepFun Step Plan",
@@ -73,7 +82,10 @@
         "step-3.5-flash",
         "step-3.5-flash-2603",
         "step-5-preview"
-      ]
+      ],
+      "id": "stepfun",
+      "enabled": true,
+      "hasKey": true
     },
     "zai-coding-plan": {
       "providerName": "Zai Coding Plan",
@@ -81,7 +93,10 @@
       "apiKeyEnv": "ZAI_CODING_API_KEY",
       "billing": "plan",
       "routerOnly": true,
-      "models": []
+      "models": [],
+      "id": "zai-coding-plan",
+      "enabled": true,
+      "hasKey": true
     }
   },
   "omniModel": [

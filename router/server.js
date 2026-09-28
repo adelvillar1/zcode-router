@@ -1276,26 +1276,22 @@ const server = http.createServer((req, res) => {
               return [...routed].filter((pid) => !declared.has(pid));
             })(),
           },
+          // The FULL roster, not a projection: the dashboard edits this object
+          // and PUTs it back verbatim, so it must carry every section
+          // (typesafe, workflows, manualModelRules, judge, quota, baseUrl…).
+          // A projected copy once reached the PUT path and validation + the
+          // rollback caught it — but only after the operator hit a wall.
+          // id/hasKey/enabled are attached per provider for the UI.
           roster: roster
-            ? {
-                providers: Object.entries(roster.providers ?? {}).map(([id, p]) => ({
-                  id,
-                  providerName: p.providerName ?? id,
-                  billing: p.billing ?? "plan",
-                  enabled: p.enabled !== false,
-                  routerOnly: Boolean(p.routerOnly),
-                  apiKeyEnv: p.apiKeyEnv ?? null,
-                  hasKey: p.apiKeyEnv ? Boolean(envFile()[p.apiKeyEnv]) : Boolean(p.apiKey),
-                  models: p.models ?? [],
-                  featured: p.featured ?? [],
-                })),
-                tiers: roster.tiers ?? {},
-                omniModel: roster.omniModel ?? null,
-                wideModel: roster.wideModel ?? null,
-                mixture: roster.mixture ?? null,
-                profiles: roster.profiles ?? {},
-                routing: roster.routing ?? {},
-              }
+            ? (() => {
+                const full = JSON.parse(JSON.stringify(roster));
+                for (const [id, p] of Object.entries(full.providers ?? {})) {
+                  p.id = id;
+                  p.enabled = p.enabled !== false;
+                  p.hasKey = p.apiKeyEnv ? Boolean(envFile()[p.apiKeyEnv]) : Boolean(p.apiKey);
+                }
+                return full;
+              })()
             : { error: r.error },
         });
         return;
