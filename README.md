@@ -305,6 +305,18 @@ carrying images goes to `omniModel`, and one wider than `wideChars` goes to
 `wideModel`. A text-only target cannot take an image, and a small-context model
 cannot swallow a million characters.
 
+**Pinning a workload from code.** Non-agent consumers skip the judge by
+setting the request's `model` field to a profile name — `"prose"`, `"quick"`,
+`"hard"`, `"long-context"` — which pins that workload with no judgment call.
+The response's `model` field reports the model that actually served (the tier
+chain may have walked), so stamp it: a consumer that records which model
+answered can measure them. First consumer example: the
+[ux-capture kit](https://github.com/adelvillar1/ux-capture-probe)'s
+quality-loop adjuster pins `prose`/`quick`/`hard` across its seeded
+produce→check→revise loops and compares loop-counts-to-convergence per
+serving model (`adjuster-signal.json`) — an efficiency signal that costs
+nothing extra, since the router is already metering every attempt.
+
 After the verdict, the tier's candidate chain is applied with quota awareness:
 a candidate whose calibrated plan headroom is under
 `routing.quotaMinHeadroom` (default 40%) is passed over for a healthier one in
