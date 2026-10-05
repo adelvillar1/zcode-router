@@ -60,7 +60,7 @@ What already exists as scattered v1 (this session): `sys1.classify` in the engin
 
 ### Phase 5 — zcode retrofit and close
 
-16. **Re-port** `lib/workflow/` (engine + harness) into `zcode-router-kit` with provenance headers; `npm run kit -- doctor` green; `~/.zcode/router/config.json` byte-identical. Verify: node --check both editions; shasum.
+16. **Re-port** `lib/workflow/` (engine + harness) into `zcode-router-kit` with provenance headers; `npm run kit -- doctor` green; `~/.zcode/router/config.json` byte-identical. Verify: node --check both editions; shasum. Re-port gap measured 2026-10-05: `harness.mjs` and `services.mjs` do not exist in the re-port at all (items 3, 7, 8, 18 live in them), and all six ported files (`engine.mjs`, `events.mjs`, `graph.mjs`, `meta.mjs`, `schema.mjs`, `tools.mjs`) differ from the engine edition — so this item is a fresh port of eight files, not a sync of two. The re-port also carries 33 workflow files against the engine's 16; the port must not clobber the kit's own library.
 17. **Docs** — `docs/features/workflow-runtime.md` gains the control-plane section (what the plane assembles, the tool registry and grants, what stays workflow-side); the swarm doc notes the shared assembly. Cross-repo: the generic `judge` op proposal for dev-decisions (its own repo, its own review) is the preferred home for new plane judgments.
 
 ## Use cases (when the feature has user-visible behavior)
