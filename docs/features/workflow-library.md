@@ -29,10 +29,10 @@ Every workflow that fans out to builders — the `swarm` family and
 `adversarial-solve` alike — consumes the same plane functions
 (`measureEnvironment`, `renderBrief`, `renderContract`, `validateContract`,
 `judgeContract`, per-part checkpoints, per-shape budgets, settlement). The
-swarm's atomicity gate and a workflow's dispatch gate are one implementation
-in `lib/workflow/`, not two: a workflow declares decomposition and ownership,
-and the plane assembles, gates, journals and settles. See
-[workflow-runtime.md](workflow-runtime.md).
+The swarm's atomicity gate and a workflow's dispatch gate are one implementation
+in the plane (`workflow-plane/harness.mjs`), not two: a workflow declares
+decomposition and ownership, and the plane assembles, gates, journals and
+settles. See [workflow-runtime.md](workflow-runtime.md).
 
 ## Where the code lives
 

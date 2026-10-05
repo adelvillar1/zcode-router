@@ -4,13 +4,14 @@
 
 ## Purpose
 
-`lib/workflow/` is the runtime `kit workflows run|watch|graph` drives, and the
-half of the router that executes a library workflow: a workflow file declares
-*what* its agents are told and *who* owns which files; the plane assembles
-everything else. The port is verbatim from the engine edition
-(`agnostic-router-kit lib/workflow/`, provenance headers on every file) — this
-repo ships it, it does not fork it, and the full reference for the file format
-and the surface lives there.
+The workflow plane is the runtime `kit workflows run|watch|graph` drives, and
+the half of the router that executes a library workflow: a workflow file
+declares *what* its agents are told and *who* owns which files; the plane
+assembles everything else. It is not in this repo — it is the `workflow-plane`
+package, resolved from the engine edition's checkout
+(`agnostic-router-kit lib/workflow/`) as a `file:` dependency, so there is one
+plane rather than a copy per edition. The full reference for the file format
+and the surface lives in the engine edition's `docs/features/workflow-runtime.md`.
 
 ## What the plane assembles (so no workflow does)
 
@@ -96,8 +97,25 @@ plane's; judgement about *what to build* is the workflow's.
 
 ## Where the code lives
 
-`lib/workflow/` (engine, harness, tools, services, checkpoint, schema, meta,
-events, graph — all verbatim ports), `lib/cli.mjs` (`workflows run|watch|graph`
-and the copyRuntime that ships the runtime beside the router), and the ported
-probes in the engine edition (`budgets-probe`, `competition-probe`) that drive
-the plane's lifecycle policy with real model calls.
+The plane is not in this repo. It is the `workflow-plane` package — the engine
+edition's `agnostic-router-kit lib/workflow/` — resolved here as a `file:`
+dependency into `node_modules/workflow-plane`, and imported everywhere by the
+package specifier (`workflow-plane/engine.mjs`, `workflow-plane/events.mjs`, …)
+rather than by a relative path, in `lib/cli.mjs` and `router/server.js`. That
+is the whole boundary: this repo owns no copy of the plane, so a divergence
+between the editions fails at resolution instead of shipping, and
+`tools/check-plane.mjs` (`npm run check:port`) is the check that the resolved
+package still is the engine checkout.
+
+What lives here: `lib/cli.mjs` (`workflows run|watch|graph`, and the
+`copyRuntime` that installs the package's modules beside the router from a file
+list derived from the package's own exports), `lib/workflowlib.mjs` (the routing
+registry built from the engine edition's shipped workflow files), and the probes
+in the engine edition (`budgets-probe`, `competition-probe`, `tokens-probe`,
+`grants-probe`, `services-probe`, `edit-probe`, `delegate-probe`,
+`escalation-probe`, `runtime-surface-probe`) that drive the plane's lifecycle
+policy with real model calls.
+
+The plane's modules, and the concern each owns, are listed in the engine
+edition's `docs/features/workflow-runtime.md` — there is one such list, because
+there is one plane.
