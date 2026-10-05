@@ -14,3 +14,10 @@ router/logs/
 
 # personal publishing drafts — local only
 docs/social/
+
+# local agent context (paths, key names) — never committed
+CLAUDE.local.md
+
+# local tool caches — never committed
+.v2c/
+.video_agent/

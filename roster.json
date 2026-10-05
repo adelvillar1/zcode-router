@@ -118,10 +118,10 @@
       ]
     },
     "standard_code": {
-      "target": "stepfun/step-3.7-flash",
+      "target": "token-plan/qwen3.8-flash",
       "fallbacks": [
         "zai-coding-plan/GLM-5.3-Flash",
-        "token-plan/qwen3.8-flash"
+        "stepfun/step-3.7-flash"
       ]
     },
     "hard": {
@@ -139,10 +139,10 @@
       ]
     },
     "deep_context": {
-      "target": "xiaomi-mimo/mimo-v2.6-pro",
+      "target": "stepfun/step-5-preview",
       "fallbacks": [
         "zai-coding-plan/GLM-5.3-Flash",
-        "stepfun/step-3.7-flash"
+        "xiaomi-mimo/mimo-v2.6-pro"
       ]
     }
   },
