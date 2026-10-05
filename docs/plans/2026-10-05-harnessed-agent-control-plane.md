@@ -21,6 +21,7 @@ The evidence, all from adversarial-solve runs on 2026-10-05 (journals under `/tm
 - Acceptance criteria carried self-contradictory arithmetic (a `tat = now + interval` case allowing 2 back-to-back requests while asserting 3; a retry_after formula contradicting its own worked example).
 - Every escalation met "no owner available — proceed on best judgment", even when the operator could have answered in one line.
 - One champion's failure discarded three other champions' finished work (`Promise.all`).
+- The current agent tool surface is narrow and read-mostly by design (`read_file`, `list_files`, `search_files`, `write_file` whole-file, `run_command` synchronous with a 5-minute cap, `escalate`). What it lacks is the rest of a harness: no surgical edit, no sub-agent delegation, no background command, no git isolation in the swarm (parts write straight into the workspace), no token accounting. Each is a service the plane provides rather than each workflow rediscovering.
 
 What already exists as scattered v1 (this session): `sys1.classify` in the engine API; the `part_atomicity` gate; deterministic dispatch validation; per-champion namespaces; measured-environment facts in builder briefs; the deliverable evidence-gate; `--max-rounds`. The control plane consolidates them into one owned layer instead of per-workflow conventions.
 
@@ -40,18 +41,23 @@ What already exists as scattered v1 (this session): `sys1.classify` in the engin
 ### Phase 3 — the tool surface (the rest of what a harness handles)
 
 6. **Tool registry with capability grants** — the runtime's tool surface (workspace io, `world.run` allowlist, agent `run_command`) becomes the plane's registry: capability classes (workspace-io, process, net-fetch, package, test-runner), per-run grants (`--allow-cmd` generalized to explicit capability/exe grants), and a journal audit line per call carrying the grant that authorized it. No silent capability growth — a workflow that needs net-fetch or package installs declares the grant, the run log shows it.
-7. **Harness services behind grants** — the services a real harness gives agents, evaluated against the same registry: package installs (`npm ci` in-run for test runners), bounded net-fetch (research-report already does it through an allowlisted `node -e`; make it a first-class grant instead of a trick), dev servers with bounded lifetime for server-shaped deliverables, and format/lint hooks pre-verification. Each is a grant + a capped tool, never ambient.
+7. **Harness services behind grants** — the services a real harness gives agents, evaluated against the same registry: package installs (`npm ci` locked-only in-run for test runners — no arbitrary installs; a package not in the manifest is rejected, not fetched), bounded net-fetch (research-report already does it through an allowlisted `node -e`; make it a first-class grant carrying a domain allowlist and a response size cap, instead of a trick), dev servers with bounded lifetime for server-shaped deliverables, and format/lint hooks pre-verification. Each is a grant + a capped tool, never ambient.
 8. **Context services** — what a harness does for context: per-agent brief assembly is already the plane's; add result-shaping on the way back (PartResult validation against the declared contract — the "right shape of deliverable" check is code, not hope).
+9. **Surgical file editing** — `edit_file({path, old_string, new_string})` beside `write_file`: exact-match replacement with a uniqueness requirement (a zero-match or ambiguous match fails loudly instead of silently rewriting), scoped to the workspace and to the contract's owned paths. Whole-file rewrites are the dominant corruption mode for parts that touch existing files — a 400-line file regenerated from the model's memory truncates and drifts silently — and this is also the read-before-write discipline a harness enforces as code. Verify: a probe part edits an existing file, the journal carries the edit call, and a non-unique `old_string` returns an error rather than writing.
+10. **Bounded sub-agent delegation** — a part that meets a self-contained subproblem delegates it instead of ballooning its own context or throwing "stuck, not big": spawn a fresh-context one-shot completer with its own rounds cap, the same grants, and a declared contract. This is the harness form of the universal atomic contract the decomposition law already states (every agentic unit completable as one standalone completion). It is not an escape hatch from budgets: depth cap 1, one child at a time per part, the child's calls count against the parent's accounting, and the contract + result land in the journal under the parent's namespace. Verify: a probe part whose work needs a sub-lookup delegates it; the journal shows the child's contract and result beneath the parent.
+11. **Background commands** — `run_command` stays synchronous for the common case (its cap is the right default); add `start_command`/`poll_command`/`stop_command` with a handle, an offset-based output reader (the same shape as the run watcher's reads), and a lifetime cap. A 10-minute test suite currently turns the agent's synchronous tool round dead at 5 minutes — the room-scale version of the same failure the run-6 80-minute death showed at the run level. Verify: a probe part starts a long command, polls partial output, and stops it; the journal carries start/poll/stop with the exit code.
+12. **Per-part checkpoint and rollback** — before a part builds, snapshot its owned paths (the swarm today has no git isolation at all — parts write straight into the workspace, so a failure mid-part leaves debris that poisons integration); on part failure or acceptance failure, rollback the snapshot. Complements all-settled competitions (item 15): a surviving champion's tree must not contain a loser's half-written file. Verify: a deliberately failing part leaves no trace in the integrated tree; checkpoint and rollback are journaled lines.
+13. **Token accounting and context compaction** — journal prompt/completion token counts per ask and tool calls per part; budgets (item 14) count tokens alongside rounds, since rounds measure persistence, not cost. When an agent's context crosses a threshold, compact it with one deterministic summarizer ask — keeping the brief's measured facts and contract (the plane-owned parts) — instead of dying at the context wall. Verify: a long part shows accounting lines in its journal section; a compacted agent's environment facts and contract survive when its mid-history does not.
 
 ### Phase 4 — lifecycle policy
 
-9. **Per-shape budgets** — cap policy by ask shape: build asks keep `--max-rounds`; verification/loop-shaped asks get a distinct (smaller) cap and a "stuck" escalation instead of a decomposition round. Verify: a probe with a deliberately looping ask escalates with the stuck reason inside the smaller budget.
-10. **All-settled competitions** — champion-level failure no longer discards siblings: competitions settle (allSettled), require ≥2 surviving solutions to judge, and degrade honestly below that. Verify: a probe where one champion fails still judges the survivors.
+14. **Per-shape budgets** — cap policy by ask shape: build asks keep `--max-rounds`; verification/loop-shaped asks get a distinct (smaller) cap and a "stuck" escalation instead of a decomposition round. With item 13's accounting the budget is tokens + rounds, not rounds alone. Verify: a probe with a deliberately looping ask escalates with the stuck reason inside the smaller budget.
+15. **All-settled competitions** — champion-level failure no longer discards siblings: competitions settle (allSettled), require ≥2 surviving solutions to judge, and degrade honestly below that. Verify: a probe where one champion fails still judges the survivors.
 
 ### Phase 5 — zcode retrofit and close
 
-11. **Re-port** `lib/workflow/` (engine + harness) into `zcode-router-kit` with provenance headers; `npm run kit -- doctor` green; `~/.zcode/router/config.json` byte-identical. Verify: node --check both editions; shasum.
-12. **Docs** — `docs/features/workflow-runtime.md` gains the control-plane section (what the plane assembles, the tool registry and grants, what stays workflow-side); the swarm doc notes the shared assembly. Cross-repo: the generic `judge` op proposal for dev-decisions (its own repo, its own review) is the preferred home for new plane judgments.
+16. **Re-port** `lib/workflow/` (engine + harness) into `zcode-router-kit` with provenance headers; `npm run kit -- doctor` green; `~/.zcode/router/config.json` byte-identical. Verify: node --check both editions; shasum.
+17. **Docs** — `docs/features/workflow-runtime.md` gains the control-plane section (what the plane assembles, the tool registry and grants, what stays workflow-side); the swarm doc notes the shared assembly. Cross-repo: the generic `judge` op proposal for dev-decisions (its own repo, its own review) is the preferred home for new plane judgments.
 
 ## Use cases (when the feature has user-visible behavior)
 
@@ -67,15 +73,15 @@ Order is identity: use cases are C0–C2, criteria C3–C8.
 - [ ] Every dispatched builder brief contains measured environment facts and its full contract (owned files, acceptance, provides); the journal records the contract per agent.
 - [ ] Dispatch validation is deterministic code: file collisions, non-owned path references, and dependency phrases reject before any builder runs; violations never reach a builder without being recorded.
 - [ ] Judgment events route through the decision layer per the established law, dev-decisions first: evidence verification runs `dev-decisions evidence-gate`; bounded classifications compose dev-decisions ops where they exist (rows in the shared calibration store, dispositions apply) and fall back to raw `sys1.classify` only for heads dev-decisions does not yet carry — with the fallback recorded as a promotion candidate. The plane adds no new inline model calls and no hand-set thresholds.
-- [ ] The tool surface is the plane's registry: every capability a run uses is a declared grant, every tool call is journaled against its grant, and no capability (net-fetch, package installs, dev servers) is ambient.
+- [ ] The tool surface is the plane's registry: every capability a run uses is a declared grant, every tool call is journaled against its grant, and no capability (net-fetch, package installs, dev servers, sub-agent spawning, background commands) is ambient.
 - [ ] Escalations carry a structured topic; an operator-supplied answer matching the topic resolves the escalation deterministically, and unanswered ones keep the no-owner behavior.
-- [ ] Ask budgets are per shape, and a competition/parallel build survives a member's failure when enough members survive (allSettled semantics), degrading honestly below the threshold.
+- [ ] Ask budgets are per shape (tokens alongside rounds, with compaction before the context wall), and a competition or parallel build survives a member's failure when enough members survive (allSettled semantics plus per-part checkpoint/rollback), degrading honestly below the threshold.
 - [ ] The kit's own workflow library uses the plane: adversarial-solve carries no brief-assembly code of its own, and the swarm consumes the same module.
 - [ ] zcode-router-kit runs the ported plane with doctor green and its rendered runtime config byte-identical.
 
 ## Files to be touched
 
-**agnostic-router-kit:** `lib/workflow/harness.mjs` (new), `lib/workflow/engine.mjs` (agent factory consumes the plane), `router/swarm.mjs` (briefs + gates consume the plane), `workflows/adversarial-solve.ts` (contracts only, no assembly), `docs/features/workflow-runtime.md`.
+**agnostic-router-kit:** `lib/workflow/harness.mjs` (new), `lib/workflow/tools.mjs` (the registry grows here — edit/background/sub-agent tools, behind the plane's grants), `lib/workflow/engine.mjs` (agent factory consumes the plane), `router/swarm.mjs` (briefs + gates consume the plane), `workflows/adversarial-solve.ts` (contracts only, no assembly), `docs/features/workflow-runtime.md`.
 **zcode-router-kit:** `lib/workflow/` (re-ported), `docs/plans/` — this plan.
 **dev-decisions (its own repo, its own review):** the preferred home for new plane judgments — a generic `judge` op (ad-hoc sys1 heads + `log_record` + `_GATE_OP_TARGET_FIELD` registration) so classification judgments compose the calibration store like every other gate.
 **Out of scope:** the router's judge path (already sys1), ZCode-harness `.dwf.ts` workflows, any UI.
@@ -86,12 +92,16 @@ Order is identity: use cases are C0–C2, criteria C3–C8.
 **C4:** probe run → the journal's agent contracts include measured facts (compare against a live `node --version`).
 **C5:** a contract with a duplicate file path and an "already built" instruction is rejected pre-dispatch, with the rejection in the journal.
 **C6:** the sys1 calls carry the established head shapes; a gate outage degrades fail-open with the reason logged.
-**C7:** a probe run with a pre-seeded answer resolves a matching escalation; without it, no-owner behavior is unchanged.
-**C8:** a two-champion probe where one champion fails still judges the survivor; `--max-rounds` still governs build asks.
+**C7:** a probe exercising `edit_file`, one background command, and one sub-agent shows one journal line per call naming its grant; the same calls are refused without the grant, and the refusal carries the same audit line.
+**C8:** a probe run with a pre-seeded answer resolves a matching escalation; without it, no-owner behavior is unchanged.
+**C9:** a two-champion probe where one champion fails still judges the survivor and the failed part leaves no trace; `--max-rounds` still governs build asks; a long part shows token accounting and compaction before the context wall.
+**C10:** adversarial-solve and the swarm consume the plane's assembly functions — no brief-assembly code remains in either (grep the sources).
+**C11:** doctor green in zcode-router-kit; `~/.zcode/router/config.json` byte-identical.
 
 ## Risks
 
 - **Brief bloat** — contracts and facts add tokens to every call. Mitigation: the brief is assembled once per agent (not per tool round), and the contract is data, capped like every other journal preview.
+- **Delegation as budget escape** — sub-agents could become a way to spread an over-budget ask across fresh contexts. Mitigation: depth cap 1, one child at a time, the child's tokens count against the parent's accounting, and the spawn is journaled like every other capability.
 - **Plane/workflow responsibility drift** — the plane owns assembly and enforcement; workflows own content. The acceptance criteria pin the boundary (no assembly code outside the plane).
 - **Edition divergence** — the plane is engine-owned; the verbatim-port rule covers it like the rest of `lib/workflow/`.
 
