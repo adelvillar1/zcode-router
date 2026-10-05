@@ -11,7 +11,11 @@
   "engines": {
     "node": ">=18"
   },
+  "dependencies": {
+    "workflow-plane": "file:../agnostic-router-kit/lib/workflow"
+  },
   "scripts": {
-    "kit": "node bin/zcode-router-kit.mjs"
+    "kit": "node bin/zcode-router-kit.mjs",
+    "check:port": "node tools/check-plane.mjs"
   }
 }
