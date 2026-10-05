@@ -47,6 +47,8 @@ The kit's economic contract — what protects the user's prepaid plans:
 
 **Swarm delegation.** When the judge sees a decomposable task (or quality-by-critique), it names a library workflow to run — and a second-stage workflow with a stage-scoped prompt when two stages are needed.
 
+**The workflow runtime (the control plane).** A workflow declares what its agents are told and who owns which files; `lib/workflow/` assembles everything else — measured environment facts, each part's contract and brief, deterministic dispatch validation, dev-decisions-first judgment gates, per-part checkpoints with byte-exact rollback, per-shape ask budgets, escalation answering, and settlement of a parallel set where one member's failure no longer discards its siblings. Every capability a run uses (workspace io, net-fetch, package installs, dev servers, background commands, sub-agents) is a declared grant journalled against the call that used it; nothing is ambient. See [docs/features/workflow-runtime.md](docs/features/workflow-runtime.md).
+
 **Thinking levels.** Profiles may force thinking `deep` or `off` per provider dialect (`routing.thinkingStyles`); `auto` strips reasoning params as always. Built-in profiles: `deep` (hard tier, thinking on), `bulk` (quick tier, thinking off).
 
 **Workflow library & registry.** 32 saved `.dwf.ts` workflows; 19 carry a task argument and are router-assignable, 13 take structured args and stay hand-launched. The registry is generated from each file's `zcode-workflow` metadata block — library and registry cannot drift. Adding a workflow = drop the file in `workflows/` + `kit apply`.

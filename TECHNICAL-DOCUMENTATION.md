@@ -58,6 +58,7 @@ roster.json ──kit apply──┬── ~/.zcode/router/config.json       tie
 Two programs, one data flow:
 
 - **`lib/cli.mjs` + `lib/*.mjs`** — the kit. Loads and validates the roster (tier fallbacks, payg refusal), renders the router config (`render.mjs`), surgically merges the provider config (`provider-merge.mjs`), parses workflow metadata into the registry (`workflowlib.mjs`), installs the service (`service.mjs`), and can export a live machine back into a roster (`export-live.mjs`).
+- **`lib/workflow/`** — the workflow runtime, a verbatim port of the engine edition (`agnostic-router-kit lib/workflow/`, provenance headers on every file; this repo ships it, it does not fork it). A workflow declares agents and file ownership; the plane assembles the briefs and contracts (from measured workspace facts), gates dispatch deterministically then by sys1, checkpoints each part's declared paths, budgets each ask by its shape, settles a parallel set so one member's failure does not take the others', journals every tool call against its grant, and records the run's own fact store. `kit workflows run|watch|graph` drives it; `kit apply` ships the same files beside the router so the watcher and the CLI always agree.
 - **`router/server.js`** — the router. An OpenAI-compatible proxy. For an `auto` request: capability rules first (images → `omniModel`, width → `wideModel`), then the per-session judgment cache, then the judge (workload, execution, workflow, followUp — one cached verdict per task), then execution as `single`, `mixture` (parallel proposers + integration judgment), or `swarm` (delegated to a library workflow), walking the tier's candidate chain with quota awareness and failover. Every attempt lands in the usage ledger.
 
 Full request lifecycle: `docs/features/judge-delegation.md`; rendering and safety: `docs/features/provider-config-merge.md`; diagrams in `docs/img/`.
@@ -136,7 +137,7 @@ The cycle compresses for trivial work — typos and one-line fixes don't need a 
 
 ## 11. CLI Scripts Reference
 
-`bin/zcode-router-kit.mjs` (alias `kit`): `status` · `init [--template] [--force]` · `export` · `env set|unset|list` · `apply [--dry-run]` · `doctor [--live]` · `workflows list|sync` · `route "<task>"` · `upgrade`. Dev tools: `tools/verify-pack.mjs` (pack self-check), `bin/open-upstream-pr.sh` (documents the upstream PR path).
+`bin/zcode-router-kit.mjs` (alias `kit`): `status` · `init [--template] [--force]` · `export` · `env set|unset|list` · `apply [--dry-run]` · `doctor [--live]` · `workflows list|sync|run|watch|graph` · `route "<task>"` · `upgrade`. `kit workflows run <file|name>` drives a workflow through the ported plane with `--args/--answers/--grant/--allow-domain/--allow-cmd/--max-rounds/--compact-tokens` and prints the run's token spend; `watch`/`graph` replay a finished run's journal as text or a DAG. Dev tools: `tools/verify-pack.mjs` (pack self-check), `bin/open-upstream-pr.sh` (documents the upstream PR path).
 
 ## 12. Observability
 

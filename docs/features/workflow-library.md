@@ -23,6 +23,17 @@ Drop the `.dwf.ts` into `workflows/` and run `kit apply`. The metadata block sup
 
 `swarm` (decompose, build, review) · `adversarial-solve` (solutions argue, then judged) · `bug-hunt` (root-cause without fixing) · `review-sweep` (findings confirmed before action) · `deep-dive`, `decision-memo`, `data-triage`, `regression-claim-verification`, `coverage-push`, `migration`, `plan-backlog-generation`, `postmortem`.
 
+## The fan-out workflows carry no assembly code
+
+Every workflow that fans out to builders — the `swarm` family and
+`adversarial-solve` alike — consumes the same plane functions
+(`measureEnvironment`, `renderBrief`, `renderContract`, `validateContract`,
+`judgeContract`, per-part checkpoints, per-shape budgets, settlement). The
+swarm's atomicity gate and a workflow's dispatch gate are one implementation
+in `lib/workflow/`, not two: a workflow declares decomposition and ownership,
+and the plane assembles, gates, journals and settles. See
+[workflow-runtime.md](workflow-runtime.md).
+
 ## Where the code lives
 
 `lib/workflowlib.mjs` (metadata parser + registry generator), `workflows/README.md`, roster keys `workflows.shapes` / `workflows.registry`.
