@@ -8,19 +8,44 @@ ZCode reads. Clone the repo on a new machine, write its roster, set its keys,
 and it comes up identical.
 
 ```
-roster.json ──kit apply──┬── ~/.zcode/router/config.json      tier table, MoA, workflow registry
-                         ├── ~/.zcode/v2/provider_config.json the providers the model picker shows
+roster.json ──kit apply──┬── ~/.zcode/router/config.json       tier table, MoA, workflow registry
+                         ├── ~/.zcode/v2/provider_config.json  the providers the model picker shows
                          ├── ~/.zcode/workflows/*.dwf.ts       the delegation library
+                         ├── ~/.zcode/lib/workflow/*.mjs       the 14-module workflow plane
                          └── launchd / systemd service          keeps the router running
 ```
 
-Requires Node ≥ 18 and nothing else. The router itself additionally needs
-one npm dependency (`@typesafe-ai/sdk`), installed by `kit apply` into the
-runtime dir when missing — that package is the judge that picks the workload,
-the execution style, and the workflow for every `auto` request.
+Requires Node ≥ 20 and nothing else — the CLI loads the plane too
+(`lib/cli.mjs` imports it), and the plane declares `engines.node: ">=20"`, so
+the whole kit inherits that floor. The router additionally needs
+`@typesafe-ai/sdk` in its runtime dir (`~/.zcode/router`), the judge that picks
+the workload, the execution style, and the workflow for every `auto` request.
+`kit apply` ships both the plane's modules and the manifest that declares the
+SDK, so only the SDK needs an `npm install --omit=dev` in that dir; `kit apply`
+and `kit doctor` report it when it is missing.
+
+**The workflow plane lives outside this repo.** `workflows/` here holds the
+saved `.dwf.ts` files — the library. The engine that decomposes, builds,
+coordinates and review-rounds them is a separate package, `workflow-plane`,
+which lives in the engine checkout next to this one (`../agnostic-router-kit`
+by convention). This repo resolves it as a `file:` dependency on that checkout
+and `kit apply` ships its 14 modules beside the router at
+`~/.zcode/lib/workflow/`, with a `node_modules/workflow-plane` link so the
+shipped server's imports resolve inside the install. The engine edition is
+where the plane is developed and versioned; this kit is one of its consumers.
+Because the plane is resolved rather than copied, the kit cannot drift from the
+engine — but the *installed* runtime beside the router can go stale silently, and
+that is what the live service executes. `npm run check:port` asserts all three:
+the resolution, the installed modules against the engine's, and that a module
+in the installed router can resolve `workflow-plane/*.mjs`.
 
 <p align="center">
   <img src="docs/img/architecture.svg" alt="Architecture: the roster, .env keys, and the workflow library are rendered by kit apply into the router config, ZCode's provider config, the installed workflows, and a keepalive service; the router then routes ZCode's calls to the prepaid upstreams, meters usage into the ledger, and the dashboard edits the roster back through kit apply" width="1080">
+  <br>
+  <a href="docs/architecture/zcode-router-plane.html">The package boundary, interactive</a> —
+  the engine edition's <code>workflow-plane</code>, the <code>file:</code>
+  dependency this kit resolves, the roster / keys / workflow library you edit, what
+  <code>kit apply</code> renders and installs, and the runtime it starts
 </p>
 
 ## What you get
@@ -49,7 +74,8 @@ the execution style, and the workflow for every `auto` request.
   blocks, so the library and the registry can never drift.
 - **A workflow library** — the saved dynamic workflows in `workflows/`,
   installed into `~/.zcode/workflows/` without ever deleting files the user
-  added locally.
+  added locally, plus the engine they run on (`workflow-plane` — see above),
+  installed beside the router.
 - **A usage ledger + dashboard** — the router meters every upstream call
   (calls, errors, prompt/completion tokens, latency) per model and per day —
   losing mixture proposers included, because a prepaid plan pays for those
@@ -68,6 +94,12 @@ the execution style, and the workflow for every `auto` request.
 
 ```bash
 git clone git@github.com:adelvillar1/zcode-router.git zcode-router-kit && cd zcode-router-kit
+
+# 0. the workflow engine, which is a separate repo cloned beside this one —
+#    the kit resolves workflow-plane as a file: dependency on ../agnostic-router-kit.
+#    There is no public URL for it: copy the checkout from wherever it is kept,
+#    then `npm install`. Without it npm install leaves a dangling link, kit apply
+#    silently ships no plane, and only `npm run check:port` tells you.
 
 # 1. a roster to edit — either the documented template or a copy of a live machine's
 node bin/zcode-router-kit.mjs init --template      # or: kit init   (on the source machine, then commit roster.json)
@@ -91,10 +123,18 @@ kit status                 # what is installed, which tiers resolved, router hea
 kit doctor [--live]        # full verification of the whole chain; changes nothing
 kit workflows list         # library, install state, and router-assignability per workflow
 kit workflows sync         # copy the library into ~/.zcode/workflows
+kit workflows run <name>   # run a workflow on the plane, on the spot
+kit workflows watch [id]   # tail a run's journal
+kit workflows graph [--dot|--archify out.json]   # the session graph: plans, criteria, phases, runs
 kit route "audit the docs tree for staleness"   # ask the running router for its verdict
 kit apply                  # render + install + restart + health-check (idempotent)
 kit upgrade                # git pull && kit apply
 open http://127.0.0.1:8300/dashboard   # usage ledger, delegation editor, suggestions
+
+`kit workflows run` takes a runtime workflow — a `.ts` beside the `.dwf`
+library, or a direct path — and answers its questions with `--answers`; it
+journals every event for `watch`/`graph`. `graph --archify` hands the result to
+archify, the same tool that drew the package boundary above.
 ```
 
 ## Configuring the roster
@@ -346,8 +386,10 @@ independent parts, or that quality depends on critique rounds. The router marks
 the response `x-router-execution: swarm` and names the workflow to run; when
 two stages are needed (first find the cause, then review the fix) it also names
 a second workflow and hands it a stage-scoped prompt built from the first
-stage's deliverable. The multi-agent execution itself lives in the workflow
-library — which is why the library ships with the kit rather than beside it.
+stage's deliverable. The library ships *with* the kit, since it is what this
+roster configures; the engine that actually runs the fan-out lives *beside* it
+in `workflow-plane`, resolved from the engine checkout and installed to
+`~/.zcode/lib/workflow/`.
 
 The library's fan-out workflows: `swarm` (decompose, build, review),
 `adversarial-solve` (several plausible solutions argue, then get judged),
@@ -355,7 +397,7 @@ The library's fan-out workflows: `swarm` (decompose, build, review),
 (changes whose findings get confirmed before anyone acts), `deep-dive`,
 `decision-memo`, `data-triage`, `regression-claim-verification`,
 `coverage-push`, `migration`, `plan-backlog-generation`, `postmortem`. Of the
-28 workflows in `workflows/`, 15 are assignable by the router; the rest take
+32 workflows in `workflows/`, 19 are assignable by the router; the rest take
 structured arguments rather than a task and stay hand-launched.
 
 **Asking the router directly** — `POST /route` (local token) returns the same
@@ -399,9 +441,8 @@ shape) the routing entry. Nothing else to register.
 ## Layout
 
 ```
-roster.json                 this machine's roster (gitignored; contains no keys)
-roster.json.example-style template: templates/roster.defaults.json
-bin/, lib/                   the CLI (zero runtime dependencies)
+roster.json                 this machine's roster (committed; holds no keys)
+bin/, lib/                   the CLI (one runtime dep: workflow-plane)
 router/server.js             the router itself (OpenAI-compatible proxy)
 router/usage.mjs             the usage ledger + SSE metering tap
 router/quota.mjs             quota derivation (calibration, headroom) and steering
@@ -410,10 +451,20 @@ router/dashboard.html        the local dashboard (usage, delegation editor, sugg
 router/README.md             router internals: routing order, judgment, MoA, quota,
                              failover, thinking levels, logs
 workflows/                   the delegation library (.dwf.ts files)
+tools/check-plane.mjs        plane guard: this kit vs the engine checkout
+tools/verify-pack.mjs        byte-exact + schema conformance for workflows/ (needs a ZCode clone for `yaml`)
+bin/open-upstream-pr.sh      drafts the upstream contribution PR
 templates/roster.defaults.json       every roster field, documented
 templates/systemd/                   the Linux user unit
+docs/architecture/           the package-boundary diagram + architecture overview
 docs/upstream-contribution.md        plan for contributing back to ZCode
 ```
+
+The workflow engine is **not** in this repo. `workflow-plane` — the 14 modules
+that decompose, build, coordinate and review-round a swarm — is resolved from
+the engine checkout as a `file:` dependency and installed to
+`~/.zcode/lib/workflow/` beside the router (see above). Editing it here would
+edit a copy.
 
 ## Known limits
 

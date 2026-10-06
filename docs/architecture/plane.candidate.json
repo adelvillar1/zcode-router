@@ -1,0 +1,616 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "zcode-router-kit \u2014 one roster, one workflow plane",
+    "output": "docs/architecture/zcode-router-plane.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "git@github.com:adelvillar1/zcode-router.git",
+      "revision": "112b280fd82315cc7b125bc672a55f7bba565c61",
+      "link_mode": "local-only"
+    }
+  },
+  "components": [
+    {
+      "id": "plane",
+      "type": "backend",
+      "label": "workflow-plane",
+      "sublabel": "in agnostic-router-kit",
+      "tag": "14 modules \u00b7 0 deps",
+      "pos": [
+        30,
+        60
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "package.json",
+          "line": 15,
+          "label": "file: dependency"
+        },
+        {
+          "path": "lib/cli.mjs",
+          "line": 145,
+          "end_line": 149,
+          "label": "planePackageDir"
+        }
+      ]
+    },
+    {
+      "id": "planelink",
+      "type": "backend",
+      "label": "node_modules link",
+      "sublabel": "workflow-plane, resolved here",
+      "pos": [
+        340,
+        60
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "lib/cli.mjs",
+          "line": 145,
+          "end_line": 149,
+          "label": "realpathSync target"
+        }
+      ]
+    },
+    {
+      "id": "roster",
+      "type": "database",
+      "label": "roster.json",
+      "sublabel": "tiers \u00b7 fallbacks \u00b7 profiles",
+      "pos": [
+        30,
+        230
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "lib/cli.mjs",
+          "line": 320,
+          "label": "loadAndResolve"
+        }
+      ]
+    },
+    {
+      "id": "env",
+      "type": "security",
+      "label": "router/.env",
+      "sublabel": "keys \u00b7 chmod 600",
+      "pos": [
+        30,
+        340
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "lib/cli.mjs",
+          "line": 322,
+          "label": "readEnvFile"
+        }
+      ]
+    },
+    {
+      "id": "workflows",
+      "type": "backend",
+      "label": "workflows/",
+      "sublabel": "the delegation library",
+      "pos": [
+        30,
+        450
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "lib/workflowlib.mjs",
+          "line": 173,
+          "label": "syncLibrary"
+        }
+      ]
+    },
+    {
+      "id": "apply",
+      "type": "backend",
+      "label": "kit apply",
+      "sublabel": "render \u00b7 install \u00b7 restart",
+      "pos": [
+        340,
+        300
+      ],
+      "size": [
+        180,
+        110
+      ],
+      "sources": [
+        {
+          "path": "lib/cli.mjs",
+          "line": 318,
+          "label": "cmdApply"
+        }
+      ]
+    },
+    {
+      "id": "config",
+      "type": "database",
+      "label": "router/config.json",
+      "sublabel": "tier chains \u00b7 MoA \u00b7 registry",
+      "pos": [
+        640,
+        230
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "lib/cli.mjs",
+          "line": 349,
+          "label": "writeJson(dest, cfg)"
+        }
+      ]
+    },
+    {
+      "id": "provcfg",
+      "type": "database",
+      "label": "provider_config.json",
+      "sublabel": "ZCode's picker providers",
+      "pos": [
+        640,
+        340
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "lib/cli.mjs",
+          "line": 368,
+          "label": "mergeProviderConfig"
+        }
+      ]
+    },
+    {
+      "id": "wfinst",
+      "type": "backend",
+      "label": "~/.zcode/workflows/",
+      "sublabel": "the library ZCode runs",
+      "pos": [
+        640,
+        450
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "lib/cli.mjs",
+          "line": 382,
+          "label": "syncLibrary"
+        }
+      ]
+    },
+    {
+      "id": "planeinst",
+      "type": "backend",
+      "label": "~/.zcode/lib/workflow",
+      "sublabel": "the 14 modules, shipped",
+      "pos": [
+        640,
+        560
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "lib/cli.mjs",
+          "line": 108,
+          "end_line": 118,
+          "label": "copyRuntime ships the plane"
+        }
+      ]
+    },
+    {
+      "id": "zcode",
+      "type": "frontend",
+      "label": "ZCode",
+      "sublabel": "model picker \u00b7 agent",
+      "pos": [
+        930,
+        210
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "router/server.js",
+          "line": 3,
+          "label": "OpenAI-compatible proxy"
+        }
+      ]
+    },
+    {
+      "id": "router",
+      "type": "backend",
+      "label": "router/server.js",
+      "sublabel": "the proxy \u00b7 :8300",
+      "pos": [
+        930,
+        350
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "router/server.js",
+          "line": 1321,
+          "label": "http.createServer"
+        }
+      ]
+    },
+    {
+      "id": "judge",
+      "type": "security",
+      "label": "the judge",
+      "sublabel": "verdict per task \u00b7 fail-open",
+      "pos": [
+        930,
+        490
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "router/server.js",
+          "line": 318,
+          "label": "judgeViaFastino"
+        }
+      ]
+    },
+    {
+      "id": "upstreams",
+      "type": "external",
+      "label": "upstreams",
+      "sublabel": "prepaid plans",
+      "pos": [
+        930,
+        630
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "router/server.js",
+          "line": 149,
+          "label": "upstream(providerId)"
+        }
+      ]
+    },
+    {
+      "id": "ledger",
+      "type": "database",
+      "label": "usage ledger",
+      "sublabel": "every attempt metered",
+      "pos": [
+        930,
+        770
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "router/server.js",
+          "line": 600,
+          "label": "usage.record"
+        },
+        {
+          "path": "router/usage.mjs",
+          "line": 101,
+          "label": "record()"
+        }
+      ]
+    },
+    {
+      "id": "dashboard",
+      "type": "frontend",
+      "label": "dashboard",
+      "sublabel": "usage \u00b7 delegation editor",
+      "pos": [
+        930,
+        910
+      ],
+      "size": [
+        180,
+        64
+      ],
+      "sources": [
+        {
+          "path": "router/server.js",
+          "line": 1556,
+          "label": "PUT /api/roster"
+        },
+        {
+          "path": "router/server.js",
+          "line": 1011,
+          "label": "applyRoster re-runs apply"
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "The engine edition",
+      "wraps": [
+        "plane"
+      ],
+      "pad": 26
+    },
+    {
+      "kind": "region",
+      "label": "You edit \u2014 zcode-router-kit",
+      "wraps": [
+        "roster",
+        "env",
+        "workflows"
+      ],
+      "pad": 26
+    },
+    {
+      "kind": "region",
+      "label": "The kit's gateway \u2014 lib/cli.mjs",
+      "wraps": [
+        "planelink",
+        "apply"
+      ],
+      "pad": 26
+    },
+    {
+      "kind": "region",
+      "label": "kit apply renders + installs",
+      "wraps": [
+        "config",
+        "provcfg",
+        "wfinst",
+        "planeinst"
+      ],
+      "pad": 26
+    },
+    {
+      "kind": "region",
+      "label": "Runtime \u2014 127.0.0.1 and beyond",
+      "wraps": [
+        "zcode",
+        "router",
+        "judge",
+        "upstreams"
+      ],
+      "pad": 26
+    }
+  ],
+  "connections": [
+    {
+      "id": "plane-to-link",
+      "from": "plane",
+      "to": "planelink",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "file: dependency",
+      "variant": "emphasis"
+    },
+    {
+      "id": "link-resolves",
+      "from": "planelink",
+      "to": "apply",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "resolves",
+      "variant": "dashed"
+    },
+    {
+      "id": "roster-to-apply",
+      "from": "roster",
+      "to": "apply",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "the roster"
+    },
+    {
+      "id": "env-to-apply",
+      "from": "env",
+      "to": "apply",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "keys by name"
+    },
+    {
+      "id": "workflows-to-apply",
+      "from": "workflows",
+      "to": "apply",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "the library"
+    },
+    {
+      "id": "apply-config",
+      "from": "apply",
+      "to": "config",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "renders"
+    },
+    {
+      "id": "apply-provcfg",
+      "from": "apply",
+      "to": "provcfg",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "merges"
+    },
+    {
+      "id": "apply-wfinst",
+      "from": "apply",
+      "to": "wfinst",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "installs"
+    },
+    {
+      "id": "apply-planeinst",
+      "from": "apply",
+      "to": "planeinst",
+      "fromSide": "bottom",
+      "toSide": "left",
+      "label": "ships the plane"
+    },
+    {
+      "id": "zcode-router",
+      "from": "zcode",
+      "to": "router",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "variant": "emphasis"
+    },
+    {
+      "id": "config-router",
+      "from": "config",
+      "to": "router",
+      "fromSide": "right",
+      "toSide": "left",
+      "label": "read at boot",
+      "variant": "dashed"
+    },
+    {
+      "id": "router-judge",
+      "from": "router",
+      "to": "judge",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "asks"
+    },
+    {
+      "id": "router-upstreams",
+      "from": "router",
+      "to": "upstreams",
+      "fromSide": "left",
+      "toSide": "left",
+      "label": "tier chain walk",
+      "via": [
+        [
+          880,
+          382
+        ],
+        [
+          880,
+          662
+        ]
+      ]
+    },
+    {
+      "id": "router-ledger",
+      "from": "router",
+      "to": "ledger",
+      "fromSide": "right",
+      "toSide": "right",
+      "label": "meters every attempt",
+      "via": [
+        [
+          1140,
+          382
+        ],
+        [
+          1140,
+          802
+        ]
+      ]
+    },
+    {
+      "id": "ledger-dashboard",
+      "from": "ledger",
+      "to": "dashboard",
+      "fromSide": "bottom",
+      "toSide": "top",
+      "label": "reads",
+      "variant": "dashed"
+    },
+    {
+      "id": "dashboard-apply",
+      "from": "dashboard",
+      "to": "apply",
+      "fromSide": "left",
+      "toSide": "left",
+      "label": "edits + re-applies",
+      "variant": "dashed",
+      "via": [
+        [
+          300,
+          942
+        ],
+        [
+          300,
+          355
+        ]
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "dot": "violet",
+      "title": "The plane's ownership",
+      "items": [
+        "workflow-plane is one npm package in the engine edition's checkout: 14 modules, one exports entry each, zero runtime dependencies.",
+        "The kit carries no copy of it \u2014 npm install resolves it as a file: dependency into node_modules/workflow-plane.",
+        "npm run check:port fails the moment the resolved package and the engine checkout differ."
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "What kit apply ships",
+      "items": [
+        "The router runtime and the plane ship beside the router: ~/.zcode/lib/workflow plus a node_modules/workflow-plane link.",
+        "What ships is derived from the package's own exports, never a written list.",
+        "The launchd / systemd keepalive unit is installed in the same pass."
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "The router",
+      "items": [
+        "judge.mode picks typesafe, fastino (sys1's GLiNER2.5 decide on 127.0.0.1:8400), or cascade.",
+        "Every judgment is fail-open: a missing key, an error, or low confidence degrades to the default workload.",
+        "The dashboard writes the roster and re-runs apply \u2014 it never writes rendered state itself."
+      ]
+    }
+  ]
+}

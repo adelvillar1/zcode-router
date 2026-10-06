@@ -26,3 +26,10 @@ CLAUDE.local.md
 # local tool caches — never committed
 .v2c/
 .video_agent/
+.archify/
+
+# archify run receipts for docs/architecture/plane.candidate.json — the
+# candidate and its HTML render are the committed artifacts
+docs/architecture/*.finalize*.json
+docs/architecture/*.delivery.json
+docs/architecture/*.browser-check.json

@@ -9,7 +9,7 @@
     "kit": "bin/zcode-router-kit.mjs"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "dependencies": {
     "workflow-plane": "file:../agnostic-router-kit/lib/workflow"

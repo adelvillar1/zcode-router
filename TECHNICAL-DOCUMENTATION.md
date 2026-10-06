@@ -38,9 +38,9 @@ One roster file (`roster.json`) decides what a machine has; `kit apply` renders 
 
 | Layer | Technology |
 |-------|------------|
-| Language | Node.js ≥ 18, ESM (`.mjs` throughout) |
-| CLI (`bin/`, `lib/`) | **zero runtime dependencies** |
-| Router (`router/server.js`) | `node:http` (no web framework), one npm dep: `@typesafe-ai/sdk` (the judge client) |
+| Language | Node.js ≥ 20, ESM (`.mjs` throughout) — the CLI and the router both load the workflow plane, which declares `>=20` |
+| CLI (`bin/`, `lib/`) | one runtime dep: `workflow-plane` (resolved from the engine checkout) |
+| Router (`router/server.js`) | `node:http` (no web framework), two npm deps: `@typesafe-ai/sdk` (the judge client) and `workflow-plane` (the workflow engine) |
 | Database | none — JSON files (roster in git, ledger + config on disk) |
 | Service | macOS launchd user agent / Linux systemd user unit |
 | Hosting | local machine only; router listens on `127.0.0.1:8300` |
