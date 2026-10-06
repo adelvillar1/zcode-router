@@ -95,15 +95,20 @@ roster and the workflow library hold none of them as values (grep guard: 0).
 - **`roster.json` carries local tier drift that is not this port's.** The
   working tree's roster changes reorder tier targets
   (`quick`/`standard_code` → `xiaomi-mimo/mimo-v2.6-flash`, `hard` →
-  `stepfun/step-5-preview`) alongside the port's own changes. Whoever commits
-  next should decide whether that drift belongs in the same commit. The roster
+  `stepfun/step-5-preview`) alongside the port's own changes. The port
+  committed without it, and that was the call — a feature commit that also
+  silently rewrites provider tiers is harder to bisect. The roster
   declares **no** `router.apps` rows — apps are an explicit operator
   declaration, and none has been declared on this machine yet; the template
   documents the shape and the machinery is proven by the probe.
-- **The port is live; the commit is not.** The machine runs the new server
-  (8300 green), but every file above is uncommitted on `master`. A fresh clone
-  plus `kit apply` would not yet reproduce this runtime — the commit is the
-  remaining step, and it is the operator's call.
+- **The port is committed and it is `86f12e9`.** The machine runs the new
+  server (8300 green) and a fresh clone of `master` plus `kit apply` now
+  reproduces that runtime; `kit apply --dry-run` reported no steps to run,
+  which is how the live install was confirmed to match the commit. The
+  `roster.json` tier drift above is the one pre-existing change deliberately
+  left out of that commit — it is still a working-tree edit, so anyone who
+  wonders why the checked-in roster disagrees with the live one is looking at
+  that, not at this port.
 
 ## The board's view of this work
 
