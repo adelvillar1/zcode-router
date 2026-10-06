@@ -67,7 +67,9 @@ The kit's economic contract — what protects the user's prepaid plans:
 
 ## 5. Admin Tool: the Dashboard
 
-The dashboard is the kit's only UI — usage tabs (live via SSE), delegation editor, model-strength-aware suggestions, and the delegation registry view. It authenticates with the local token (stamped into the served page). Saves go through `PUT /api/roster`, which writes the roster and re-applies — the dashboard can never produce state the kit wouldn't.
+The dashboard is the kit's only UI — usage tabs (live via SSE), delegation editor, model-strength-aware suggestions, the delegation registry view, and the workflow board. It authenticates with the local token (stamped into the served page). Saves go through `PUT /api/roster`, which writes the roster and re-applies — the dashboard can never produce state the kit wouldn't.
+
+The workflow surfaces are strictly read-only. The **Board** tab answers "where does the work stand" as a kanban board — four columns for what is planned, executing, completed and abandoned, one card per work item, assembled from the same sources the graph reads (plan markdown, run journals, the router log, the dev-decisions store, git log, recaps). Each card carries its deliverables, the agents assigned to it, and what the agent is doing right now; clicking a card opens the task's detail. Cards move as runs start, finish and fail, driven by the same SSE stream that feeds the activity feed. The layered plan→recap DAG that preceded it stays one toggle away over exactly the same model. Nothing on either surface writes: the kit CLI remains the only writer and control surface, so the board cannot produce workflow state the kit wouldn't.
 
 ## 6. Failover & Degraded States
 

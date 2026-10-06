@@ -165,7 +165,8 @@ localStorage — `kit status` prints it).
   actually routes.
 
 
-Four surfaces:
+Six surfaces. Four edit the roster; two watch the kit's own workflow work and
+are strictly read-only (the kit CLI stays the only writer):
 
 - **Usage** — the point of the router is that plans are prepaid, so the
   interesting number is what each model actually consumed. Calls, errors,
@@ -203,6 +204,56 @@ second copy inside the router. If apply fails, the roster is rolled back and
 resynced before the error reaches the UI. Two fields are not dashboard-editable
 on purpose: the router identity (`port` / `localToken`) — changing the port
 there would desync the running service definition — and the schema version.
+
+## Workflow surfaces: Activity and Board
+
+Two more tabs watch the kit's own workflow work — the same long runs the CLI
+starts — and are strictly read-only. Neither can start, stop or edit a run; the
+kit CLI remains the only writer and control surface, so nothing on these tabs
+can produce workflow state the kit wouldn't.
+
+- **Activity** — the temporal view. Per-run phase progress, an agent activity
+  feed, artifacts landing, gate verdicts, and per-run last-event age, which is
+  the stall detector: a run that goes quiet shows up in the first minute instead
+  of the fortieth. Completed runs render from `summary.json` plus journal
+  replay, so a finished run is as inspectable as a live one.
+- **Board** — the question an operator actually opens the tab for: *where does
+  the work stand?* A kanban board with four columns — **planned, executing,
+  completed, abandoned** — and one card per work item. A card is a plan with the
+  runs it dispatched attached, or a bare run when no plan claims it; a plan's
+  card sits in Executing when any of its runs is live, and moves to Completed
+  when the plan's own status says so.
+
+  Each card carries three rows: **deliverables** (a plan's acceptance criteria
+  with the checked count, plus the artifacts its runs produced; a run's
+  artifacts with version, size and path), **agents** (one row per actor name
+  with asks and tool calls, aggregated across the plan's runs; a swarm shows
+  its parts with their last gate verdict), and **now** — what the agent is
+  doing right now: the latest phase, the latest tool call, or the artifact it
+  last produced, with the age of the newest journal event for a live card.
+
+  Clicking a card opens the task's detail below the board: for a run, the
+  `contract` events that name which agent owns which files and what it
+  provides, plus phases, the agent table, artifacts and the dev-decisions gates
+  attributed to the run's time window; for a plan, the full criterion list with
+  done/open marks, its phases, its runs with state, its artifacts, and the
+  commits that recorded them and recaps that summarize them.
+
+  Cards move as runs start, finish and fail. The SSE **heartbeat** frame is the
+  authority on liveness, so a finished card leaves Executing within one
+  5-second heartbeat; the `summary` frame lands the moment the run ends, which
+  usually makes the move instant. `event` frames fill the "now" row as the
+  journal is written.
+
+  The board replaced the layered plan→recap DAG as the tab's default view; the
+  DAG stays one toggle away (`Board` / `Graph`) over exactly the same graph
+  model, and the chosen mode is remembered per browser. Both work in light and
+  dark, reusing the palette already in the graph legend — no new tokens.
+
+  One limitation is stated rather than hidden: swarm **parts** have no live
+  per-part status feed, so a swarm card lists its parts and their gate verdicts
+  but does not move parts between columns. That belongs in the workflow plane,
+  not the dashboard.
 
 ## Judge backends (TypeSafe / GLiNER2.5)
 
@@ -347,7 +398,8 @@ is bounded, visible, soft-failing approximation, not billing-grade truth.
 
 ## Files
 
-- `server.js` — the proxy (Node ≥ 18, one npm dep: `@typesafe-ai/sdk`).
+- `server.js` — the proxy (Node ≥ 20, two npm deps: `@typesafe-ai/sdk` the judge
+  client, and `workflow-plane` the engine the swarm workflows run on).
 - `usage.mjs` — the usage ledger and the SSE tap that meters streams without
   altering a byte.
 - `quota.mjs` — off-peak weighting, calibration math, headroom derivation, and

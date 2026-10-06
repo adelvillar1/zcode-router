@@ -127,3 +127,78 @@ exports (all 14 modules).
 - **`kit apply --dry-run` names no copy step while the install is current**, because
   `copyRuntime`'s lines are idempotent. The shipping path is evidenced by the install's
   history instead: each module appeared beside the router at its own step's apply.
+
+## The board — later the same day
+
+**The plan→recap graph became a kanban board, because "where does the work stand"
+is a board question, not a graph question.** Plan
+[2026-10-05-kanban-board.md](../plans/2026-10-05-kanban-board.md) (status:
+completed; twelve checkboxes — the three use cases as C0–C2 and nine acceptance
+criteria as C3–C11). The tab keeps the DAG one toggle away over the same model,
+and the board is the default view.
+
+**The board on this machine's real data**: 2 planned, 3 executing, 46 completed,
+2 abandoned — 53 cards, six plan items plus 47 bare runs.
+`plan:harness-run-memory`'s card reads `11/11` criteria · `16 runs` and
+`recall · 55 tools`; a card's "now" row was driven from "no journal events" to
+`p1 → write_file "out/x.py"` by replaying a real journal line through the page's
+own SSE handler, which is the stalled-run-visible-in-the-first-minute proof.
+Column derivation was checked against both item kinds: driving a synthetic
+heartbeat with `active: false` moved a live card from Executing/"running" to
+Completed/"ended", and a following `summary` frame moved it to "ok" — the
+headers read `Planned=2 Executing=2 Completed=46 Abandoned=2` with no reload. A
+run that ended with no summary reads Completed with an `ended` badge rather than
+being guessed either way.
+
+**Click-to-detail tells the whole task's story**: `plan:agnostic-router-kit`'s
+detail rendered all 12 acceptance criteria with ✓/▢ marks, its 4 phase chips and
+the 2 commits recorded against it, and the run detail for
+`run:2026-10-05_17-27-41-adversarial-solve` rendered the contract row
+`nfc-normalize-hyphenate — owns 2 files — 11 acceptance criteria — provides: …`
+straight from that run's journal. Both snapshots describe live data, so the
+counts describe the moment they were measured.
+
+**The Graph toggle redrew the DAG from the same model** — 521 nodes, 550 edges
+(plan 6, criterion 70, phase 18, run 100, agent 261, artifact 3, gate 20,
+commit 40, recap 3) — with `localStorage` holding the chosen mode across a
+reload. The dashboard stayed one self-contained HTML file with no new
+dependency: `node --check` on the extracted 1,485-line inline script, the token
+still stamped at line 433, and card contrast measured 14.84:1 light / 14.64:1
+dark on the `--dim/--warn/--ok/--err` palette the graph legend already used — no
+new tokens. The Activity tab rendered its 50 run rows unregressed, and
+`npm run check:port` still reports the kit's plane is the engine's package.
+
+## The package boundary, drawn — the same evening, committed now
+
+The kit's share of the plane-split's doc work landed after `112b280` and had no
+commit until this one. An interactive **package-boundary diagram** (archify,
+showcase quality) now lives at `docs/architecture/zcode-router-plane.html` with
+its candidate JSON beside it, and the README and the architecture overview both
+link it. The README gained the paragraph that the commit message of `112b280`
+already promised — *the workflow plane lives outside this repo, resolved as a
+`file:` dependency on the engine checkout* — plus the Node ≥ 20 floor (the CLI
+loads the plane, so the kit inherits its engines range) and the
+`kit workflows run/watch/graph` CLI lines. `TECHNICAL-DOCUMENTATION.md` and
+`package.json` record the floor and the dependency; `.gitignore` excludes
+`.archify/` and archify's run receipts while committing the candidate and its
+render. `docs/architecture/system.drawio` and `system.svg` — unreferenced by any
+tracked doc at `HEAD` — are retired in the same commit; both remain in git
+history if the static copies are ever wanted back.
+
+**No secrets ride with any of this.** The diagram is roster-derived by
+construction; nothing reads a key, and the scratch rigs used dummy tokens.
+
+## The port into the engine edition
+
+**The same board now ships in `agnostic-router-kit`**, so the two editions stay
+in step on the feature. The port was composition, not hand-editing: the engine's
+current dashboard with the board patch re-applied on top, provable in both
+directions — the ported file against the kit's current file is exactly the
+branding delta (10 hunks), and against the engine's own `HEAD` it is exactly the
+board patch (11 hunks, 526 diff lines). The browser pass on a scratch engine
+router rendered its own real data: 101 cards (1 planned / 3 executing / 89
+completed / 8 abandoned), every detail kind opening with content, the DAG one
+toggle away at 411 nodes / 264 edges, the Activity tab unregressed, and the
+engine's `kit doctor` unchanged at its standing 13 problems. The engine repo's
+own recap of the port — the first recap that repo has — is
+`agnostic-router-kit/docs/recaps/SESSION-RECAP-2026-10-05.md`.
