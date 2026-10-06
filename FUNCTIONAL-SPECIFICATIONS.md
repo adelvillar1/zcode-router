@@ -25,7 +25,12 @@ This file stays in sync with the implementation as part of finishing a feature (
 
 ## 1. Access Model
 
-Single-user, single-machine. The router binds to `127.0.0.1` and every API call beyond `/healthz` carries the local bearer token (roster `router.localToken`, default `local-auto-router`). There is no signup, login, or password reset; "who may use this" equals "who is on this machine".
+Single-user, single-machine. The router binds to `127.0.0.1` and every API call beyond `/healthz` carries a bearer token from one of two classes:
+
+- **The operator token** (roster `router.localToken`, default `local-auto-router`) — the CLI and dashboard's class. No ceiling: it may spawn runs in any workspace, request any grants, answer any run, and read any run's artifacts.
+- **App tokens** — explicit `router.apps` roster rows, each declaring its `grantCeiling` (and optionally a `workdir`). There is no dynamic registration; an app exists because a roster row says so.
+
+"Who may use this" still equals "who is on this machine" for the operator class. An app token is a capability, not an identity: a leaked app token's blast radius is its ceiling and its sandbox, which is the point of ceilings.
 
 ## 2. Plans & Billing Safety
 
@@ -34,6 +39,7 @@ The kit's economic contract — what protects the user's prepaid plans:
 - Providers are declared with `billing: "plan"` or `"payg"`. **A pay-per-token provider can never be a routing target** unless the roster explicitly opts in with `allowPayg: true`. Registering one in ZCode's picker is allowed; making it the router's default is not.
 - The router never imposes artificial token limits; `routing.wideChars` only diverts oversized payloads to a large-context model.
 - Quota: a plan's allowance may be declared and calibrated against console readings through the off-peak-weighted ledger; plans under 5% headroom are never suggested as primaries, and steering prefers plans with headroom. Undeclared providers are left alone.
+- Search credits (Firecrawl) are a second spend surface, and they are budgeted inside the workflow rather than at the router: a run-level `creditBudget` (default 20) gates searches, a search is one no-scrape call per sub-question, agents hold no search tools, and page reads ride the operator's self-hosted instance when configured. A missing key is a configured absence — the run refuses by naming the variable and `kit env set`, it does not crash.
 
 ## 3. Core Features
 
@@ -47,7 +53,11 @@ The kit's economic contract — what protects the user's prepaid plans:
 
 **Swarm delegation.** When the judge sees a decomposable task (or quality-by-critique), it names a library workflow to run — and a second-stage workflow with a stage-scoped prompt when two stages are needed.
 
-**The workflow runtime (the control plane).** A workflow declares what its agents are told and who owns which files; the workflow plane assembles everything else — measured environment facts, each part's contract and brief, deterministic dispatch validation, dev-decisions-first judgment gates, per-part checkpoints with byte-exact rollback, per-shape ask budgets, escalation answering, and settlement of a parallel set where one member's failure no longer discards its siblings. The plane is the `workflow-plane` package, resolved from the engine edition's checkout and imported by specifier, not a copy carried in this repo. Every capability a run uses (workspace io, net-fetch, package installs, dev servers, background commands, sub-agents) is a declared grant journalled against the call that used it; nothing is ambient. See [docs/features/workflow-runtime.md](docs/features/workflow-runtime.md).
+**The workflow runtime (the control plane).** A workflow declares what its agents are told and who owns which files; the workflow plane assembles everything else — measured environment facts, each part's contract and brief, deterministic dispatch validation, dev-decisions-first judgment gates, per-part checkpoints with byte-exact rollback, per-shape ask budgets, escalation answering, and settlement of a parallel set where one member's failure no longer discards its siblings. The plane is the `workflow-plane` package, resolved from the engine edition's checkout and imported by specifier, not a copy carried in this repo. Every capability a run uses (workspace io, net-fetch, net-search, package installs, dev servers, background commands, sub-agents) is a declared grant journalled against the call that used it; nothing is ambient. See [docs/features/workflow-runtime.md](docs/features/workflow-runtime.md).
+
+**The run API (application-spawned runs).** `POST /v1/runs` on the kit's own wire lets a pointed application spawn a workflow run — passing facts, grants, answers, and a workspace — under an app token whose ceiling bounds what it may request. The run then behaves exactly like an operator's run: it streams on the same event stream, escalates its questions over `POST /v1/runs/<id>/answers` while it is live (the caller answers without touching a terminal), and publishes its artifacts to `GET /v1/runs/<id>/artifacts`, downloadable per version. Refusals are named and journaled, never silent: a grant outside the ceiling is `403 out of bounds: …`, a workspace outside the app's root is refused by path, and another app's run is a 403 on read. See [docs/features/run-api.md](docs/features/run-api.md).
+
+**The loop library.** Seven looped workflows — deep-research (credit-bounded iterative research), triage (high-volume classify and route with escalation instead of guessing), refine-loop (rubric-scored revision to a plateau), red-team (hostile attack before ship), watchdog (state in, state out), remediate (apply confirmed findings, roll back what cannot verify), router-eval (golden-task calibration feeder) — plus four zero-model-call probes. Every flat judgment in them (yes/no, class, keep/drop, matters) rides the dev-decisions/sys1 judge layer rather than a model call, and search credits are structurally unspendable by agents: the workflow searches once per sub-question, agents hold no search tools, and page enrichment rides the operator's self-hosted scraper. See [docs/features/loop-library.md](docs/features/loop-library.md) and [docs/features/deep-research.md](docs/features/deep-research.md).
 
 **Thinking levels.** Profiles may force thinking `deep` or `off` per provider dialect (`routing.thinkingStyles`); `auto` strips reasoning params as always. Built-in profiles: `deep` (hard tier, thinking on), `bulk` (quick tier, thinking off).
 
@@ -60,6 +70,10 @@ The kit's economic contract — what protects the user's prepaid plans:
 **New machine:** clone → `kit init --template` (or `kit init` on a live machine, commit the roster) → `kit env set …` → `kit apply --dry-run` → `kit apply` → `kit doctor` → in ZCode, `LogModels` and pick `auto-router/auto` (or pin `quick`/`hard`/…).
 
 **Everyday:** `kit status` / `kit doctor` to check the chain; `kit route "…"` to preview a verdict; the dashboard to watch usage and tune delegation; `kit upgrade` to pull and re-apply.
+
+**Run a loop from the CLI:** `kit workflows run triage --args '{"items":[…]}'` / `kit workflows run watchdog --args '{…}'` — no grant needed; `--grant net-search` arms the search-backed loops (deep-research), whose keys resolve from the runtime `.env`. The run prints its stop reason, spend, and artifact paths; `kit workflows watch <run>` replays the journal.
+
+**Point an application at the wire:** add a `router.apps` row to `roster.json` (name, token, grantCeiling, optional workdir) → `kit apply` → the app POSTs to `/v1/runs` with its token. It may only spawn under its ceiling; when a run escalates, the app answers over `POST /v1/runs/<id>/answers` and collects the deliverable from the artifacts index. `kit status` lists the app rows.
 
 **Add a workflow:** drop the `.dwf.ts` into `workflows/`, `kit apply`, done — metadata supplies description, task arg, and routing shape.
 
@@ -88,6 +102,10 @@ The router's answers to "what if a plan is down":
 - **Unknown usage**: tokens are recorded only when the upstream reports them; models that don't report show unknown counts, never invented ones.
 - **Schema drift**: provider config with an unexpected `schemaVersion` aborts the apply instead of corrupting ZCode's personal config.
 - **Empty states**: fresh machine (no ledger yet) shows an empty dashboard; `kit status` on an unapplied machine says "run kit init".
+- **Out-of-ceiling spawn**: an app requesting a grant it never declared gets `403 out of bounds: <grant> is not in <app>'s ceiling` and nothing runs; the refusal is journaled as `run-spawn-refused` with the rule that fired.
+- **Sandbox escape attempt**: an app's body `workdir` resolving outside its root is refused by name; the default root `<kit home>/apps/<name>/workspaces` is created on demand rather than failing cold. The artifact download obeys the same closure: `..` and absolute paths are refused with `out of bounds: artifacts are inside this run's directory`, a file that is not there is 404, and another app's run is a 403.
+- **Cross-app read**: an app fetching or answering another app's run gets a 403; ownership is re-derived from the run's journal, so a router restart does not reopen a closed door.
+- **Missing search key**: the workflow refuses by naming `FIRECRAWL_API_KEY` (and `kit env set`), the run completes on what it has, and the refusal is journaled like every other.
 
 ## 8. UI Consistency Standards
 

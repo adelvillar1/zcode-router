@@ -2,9 +2,10 @@
   "version": 1,
   "note": "TEMPLATE — copy to roster.json and edit. One roster per machine; keys never live here (set them with: kit env set NAME=value). Everything else in this file is what `kit apply` renders from.",
   "router": {
-    "note": "port/localToken — how ZCode reaches the proxy and how kit talks to /route",
+    "note": "port/localToken — how ZCode reaches the proxy and how kit talks to /route. apps — rows that may spawn workflow runs over the run API: each is {name, token, grantCeiling (array of grant names, or absent = no grants), workdir (optional workspace root)}. Empty by default: an app is an explicit operator declaration, and a token's blast radius is its ceiling.",
     "port": 8300,
-    "localToken": "local-auto-router"
+    "localToken": "local-auto-router",
+    "apps": []
   },
   "typesafe": {
     "note": "the judge that picks workload + execution style + workflow per task",

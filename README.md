@@ -75,7 +75,18 @@ in the installed router can resolve `workflow-plane/*.mjs`.
 - **A workflow library** — the saved dynamic workflows in `workflows/`,
   installed into `~/.zcode/workflows/` without ever deleting files the user
   added locally, plus the engine they run on (`workflow-plane` — see above),
-  installed beside the router.
+  installed beside the router. Two kinds of files live there: the `.dwf.ts`
+  delegation workflows the router assigns, and the loop library — seven looped
+  workflows (deep-research, triage, refine-loop, red-team, watchdog,
+  remediate, router-eval) plus four zero-model-call probes — in which every
+  flat judgment rides the dev-decisions/sys1 judge layer instead of a model
+  call, and search credits are structurally unspendable by agents.
+- **A run API** — `POST /v1/runs` on the kit's own wire lets an application
+  spawn a workflow run under a per-app token whose `grantCeiling` bounds what
+  it may request, answer the run's escalations while it is live, and collect
+  its deliverable from the artifacts index. The operator token keeps its
+  ceiling-free reach; an app token's blast radius is its ceiling and its
+  sandbox, which is the point of ceilings.
 - **A usage ledger + dashboard** — the router meters every upstream call
   (calls, errors, prompt/completion tokens, latency) per model and per day —
   losing mixture proposers included, because a prepaid plan pays for those
@@ -425,6 +436,11 @@ Drop the `.dwf.ts` file into `workflows/` and run `kit apply`. Its metadata
 block supplies the description, the task argument, and (if you add the
 shape) the routing entry. Nothing else to register.
 
+The loop library's `.ts` files live in the same directory without being part of
+that registry: the kit reads `.dwf.ts` only, while the plane resolves its own
+`.ts` workflows beside them, so a loop can be run with
+`kit workflows run deep-research …` without appearing as a routing target.
+
 ## Safety model
 
 - `kit apply` backs up `provider_config.json` before every write and refuses
@@ -437,6 +453,23 @@ shape) the routing entry. Nothing else to register.
 - Pay-per-token providers are unreachable as routing targets unless the
   roster opts in.
 - `kit apply --dry-run` writes nothing and prints the planned diff.
+- **Two token classes, one bearer gate.** The operator token (the CLI and
+  dashboard's class) may spawn anywhere and read anything. App tokens are
+  roster rows with a declared `grantCeiling` and an optional `workdir`: a
+  grant outside the ceiling is a `403 out of bounds` journaled as
+  `run-spawn-refused`, a workspace outside the app's root is refused by path,
+  the run executes inside its own sandbox (default
+  `<kit home>/apps/<name>/workspaces`), and the app can answer or read only
+  the runs it spawned — ownership re-derived from the run's journal, so a
+  restart does not reopen the door. A leaked app token costs you its ceiling,
+  not the machine.
+- **Run capabilities are grants, not ambient power.** Every capability a run
+  uses (workspace io, net-fetch, net-search, installs, dev servers, background
+  commands, sub-agents) is declared at spawn and journalled against the call
+  that used it. Search keys resolve from `~/.zcode/router/.env` at the wire,
+  so neither the CLI nor the workflows carry key material — a key-neutrality
+  grep over `lib/` and `workflows/` returns 0, and a missing key is a
+  configured absence that names the variable rather than a crash.
 
 ## Layout
 
@@ -450,8 +483,9 @@ router/suggest.mjs           the delegation-distribution suggester
 router/dashboard.html        the local dashboard (usage, delegation editor, suggestions)
 router/README.md             router internals: routing order, judgment, MoA, quota,
                              failover, thinking levels, logs
-workflows/                   the delegation library (.dwf.ts files)
+workflows/                   the delegation library (.dwf.ts files) and the loop library (.ts)
 tools/check-plane.mjs        plane guard: this kit vs the engine checkout
+tools/probe-run-api.mjs      the run-API contract probe (33 checks, zero model calls, scratch runtime on 8399)
 tools/verify-pack.mjs        byte-exact + schema conformance for workflows/ (needs a ZCode clone for `yaml`)
 bin/open-upstream-pr.sh      drafts the upstream contribution PR
 templates/roster.defaults.json       every roster field, documented
