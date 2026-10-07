@@ -17,7 +17,7 @@
       "type": "backend",
       "label": "workflow-plane",
       "sublabel": "in agnostic-router-kit",
-      "tag": "14 modules \u00b7 0 deps",
+      "tag": "16 modules \u00b7 0 deps",
       "pos": [
         30,
         60
@@ -213,7 +213,7 @@
       "id": "planeinst",
       "type": "backend",
       "label": "~/.zcode/lib/workflow",
-      "sublabel": "the 14 modules, shipped",
+      "sublabel": "the 16 modules, shipped",
       "pos": [
         640,
         560
@@ -589,7 +589,7 @@
       "dot": "violet",
       "title": "The plane's ownership",
       "items": [
-        "workflow-plane is one npm package in the engine edition's checkout: 14 modules, one exports entry each, zero runtime dependencies.",
+        "workflow-plane is one npm package in the engine edition's checkout: 16 modules, one exports entry each, zero runtime dependencies.",
         "The kit carries no copy of it \u2014 npm install resolves it as a file: dependency into node_modules/workflow-plane.",
         "npm run check:port fails the moment the resolved package and the engine checkout differ."
       ]

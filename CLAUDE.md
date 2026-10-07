@@ -93,11 +93,11 @@ open http://127.0.0.1:8300/dashboard
 
 ## Today's state
 
-- Router up on 127.0.0.1:8300; launchd service `com.zcode.model-router` loaded; `kit doctor` green (2026-09-29).
+- Router up on 127.0.0.1:8300; launchd service `com.zcode.model-router` loaded; `kit doctor` green.
 - 32 workflows installed — 19 router-assignable, 13 hand-launched.
-- Tiers: quick & standard_code → token-plan/qwen3.8-flash · hard → zai-coding-plan/GLM-5.3-Flash · prose → xiaomi-mimo/mimo-v2.6-flash · deep_context → stepfun/step-5-preview.
-- Durable memory: the engine edition's store (`~/.agnostic-router-kit/memory/memory.jsonl`, pinned by `MEMORY_FILE_PATH` in the server and `lib/memory.mjs`) is live on the router — the routes need a service restart to be served by the running process.
-- `roster.json` has uncommitted modifications in the working tree.
+- Tiers as committed: quick & standard_code → token-plan/qwen3.8-flash · hard → zai-coding-plan/GLM-5.3-Flash · prose → xiaomi-mimo/mimo-v2.6-flash · deep_context → stepfun/step-5-preview. The working tree's retargets (xiaomi-mimo quick/standard_code, stepfun hard) are deliberate and uncommitted.
+- The hardening wave is ported (2026-10-07): `npm test` (6 suites, ~175 checks) is the gate; `router/failclass.mjs` classifies before benching; ledger rows carry trigger + declared-price cost; durable writes are atomic. The serving process needs a service restart to run the new code.
+- Durable memory: the engine edition's store (`~/.agnostic-router-kit/memory/memory.jsonl`, pinned by `MEMORY_FILE_PATH` in the server and `lib/memory.mjs`) is live on the router.
 
 ---
 

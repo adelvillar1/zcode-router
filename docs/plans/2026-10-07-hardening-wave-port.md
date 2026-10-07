@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 created: 2026-10-07
 updated: 2026-10-07
 slug: hardening-wave-port
@@ -58,16 +58,24 @@ Render: caps from `manualModelRules` (`supportsImages`/`supportsTools`/`contextW
 
 ## Acceptance criteria
 
-- [ ] **C0** W1: single `/route` block; `workflowLibrary` array-honest; probe-memory-api exits 0 on success; tracked roster free of `hasKey`/`id` with the tier retargets still uncommitted; PUT /api/roster strips artifacts.
-- [ ] **C1** `npm test` green: glob runner, kit suites + the new ones; red proven with a deliberate failing suite; CI workflow committed.
-- [ ] **C2** fake-upstream + probe-failover green on the kit (~25 checks): walk-on-429 with Retry-After, 401 bench, benched-fallback skip, all-fail envelope, 400 passthrough, `/route` live, classified ledger reasons, streaming metered.
-- [ ] **C3** classification: unit table green; walk + cooldowns wired (roster override first); `/api/state.keyRejections` names key faults, never quota faults.
-- [ ] **C4** atomic: unit-atomic green across both kit twins + the symlinked plane's; usage, envstore, applyRoster, cli writeJson all ride atomic writes; `npm run check:port` still green.
-- [ ] **C5** caps: candidates carry caps; undeclared neutral (kit roster gates nothing today); parity probe proves a declared-doomed fallback is excluded, never tried.
-- [ ] **C6** ledger: declared pricing → costUsd/costSource; trigger on the chat path; tokens still reported-only.
-- [ ] **C7** docs in-wave: README (verification + decision steps + modules), three SVG text twins truthful, feature docs, both contract docs, TROUBLESHOOTING cooldown table, STATE-SNAPSHOT replaced, CLAUDE.md state, plan closed, recap.
-- [ ] **C8** zero new runtime npm dependencies; `node --check` clean on every touched file; the ZCode seams untouched (`upstream()` merge, KIT_ROOT apply chain, `AGNOSTIC_ROUTER_KIT_HOME`/`MEMORY_FILE_PATH` pins, memory ceilings, operator gate).
-- [ ] **C9** port discipline: `npm run check:port` green at the end; every engine block landed by region transplant adapted at the seams this plan names, not by positional patch.
+- [x] **C0** W1: single `/route` block; `workflowLibrary` array-honest; probe-memory-api exits 0 on success; tracked roster free of `hasKey`/`id` with the tier retargets still uncommitted; PUT /api/roster strips artifacts.
+- [x] **C1** `npm test` green: glob runner, kit suites + the new ones; red proven with a deliberate failing suite; CI workflow committed.
+- [x] **C2** fake-upstream + probe-failover green on the kit (~25 checks): walk-on-429 with Retry-After, 401 bench, benched-fallback skip, all-fail envelope, 400 passthrough, `/route` live, classified ledger reasons, streaming metered.
+- [x] **C3** classification: unit table green; walk + cooldowns wired (roster override first); `/api/state.keyRejections` names key faults, never quota faults.
+- [x] **C4** atomic: unit-atomic green across both kit twins + the symlinked plane's; usage, envstore, applyRoster, cli writeJson all ride atomic writes; `npm run check:port` still green.
+- [x] **C5** caps: candidates carry caps; undeclared neutral (kit roster gates nothing today); parity probe proves a declared-doomed fallback is excluded, never tried.
+- [x] **C6** ledger: declared pricing → costUsd/costSource; trigger on the chat path; tokens still reported-only.
+- [x] **C7** docs in-wave: README (verification + decision steps + modules), three SVG text twins truthful, feature docs, both contract docs, TROUBLESHOOTING cooldown table, STATE-SNAPSHOT replaced, CLAUDE.md state, plan closed, recap.
+- [x] **C8** zero new runtime npm dependencies; `node --check` clean on every touched file; the ZCode seams untouched (`upstream()` merge, KIT_ROOT apply chain, `AGNOSTIC_ROUTER_KIT_HOME`/`MEMORY_FILE_PATH` pins, memory ceilings, operator gate).
+- [x] **C9** port discipline: `npm run check:port` green at the end; every engine block landed by region transplant adapted at the seams this plan names, not by positional patch.
+
+## What landed (deviations recorded honestly)
+
+- **Every wave landed green, but three things broke on the way and were fixed in-commit**: the probe's first apply used the engine's env contract (`AGNOSTIC_ROUTER_KIT_HOME`) and touched the live machine — benign (the runtime already matched; the plane copy it synced is what check-plane wants), fixed to the kit's `ZCODE_ROUTER_DIR`/`ZCODE_ROUTER_KIT_ROSTER` scratch contract; orphaned fake-upstreams from that crash silently served stale hit counters, fixed with a cleaners-always-run probe structure and a loud EADDRINUSE exit in both editions' fake-upstream; and the `lib/cli.mjs` atomic import was an unasserted replace that silently did nothing — every replace in this port is asserted now, and the fix is its own commit.
+- **W5's parity port carried the engine's final `forward()` text**, so W6's forward-side threading was already half-landed when W6 ran — the patch script caught it by construction (asserts) instead of double-applying.
+- **The kit roster's `inputFormat.supportsImage` remains unmapped**, as planned — the caps vocabulary stays byte-identical to the engine's.
+- **Pricing is capability only**: neither edition's roster declares prices, so cost rows are null until someone does.
+- **The plane diagram was re-finalized** (the plane boundary statement changed: 16 modules, `atomic.mjs` included through the symlink) — all four archify gates pass; receipts are local-only per this repo's convention.
 
 ## Out of scope (with reasons)
 

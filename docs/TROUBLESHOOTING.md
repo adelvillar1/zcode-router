@@ -30,7 +30,7 @@ Treat `!` lines as things to explain, and remaps as real (a fallback fired becau
 ## A plan seems exhausted / traffic not steering
 
 - Quota is derived, not reported: check the roster's `quota.allowance` + `calibration.reads` (a stale console reading skews headroom), and off-peak weights.
-- A provider that answered quota-exhausted is benched (429: 5 min, 402: 15 min, 403: 30 min, 5xx: 1 min) — recent walks show in the ledger as separate rows.
+- Failures are classified before benching (`router/failclass.mjs`): a usage-limit body is a **quota** window (30-min bench) even when it arrives as a 429; a bare rate limit benches 5 min (Retry-After wins); a key rejection (401, or 403 with key vocabulary) benches 60 min and is remembered on `/api/state` → `resolved.keyRejections`; a model gap (403/404 with model vocabulary) walks **without benching**; 5xx/connection failures bench 1 min. `routing.failover.cooldowns` overrides all of it. Ledger reasons carry the class (`+upstream-429:rate`, `+upstream-402:quota`), so "why did it walk" is readable in the dashboard.
 
 ## Provider missing from ZCode's picker / whole picker degraded
 

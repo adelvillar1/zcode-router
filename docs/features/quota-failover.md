@@ -18,16 +18,21 @@ No prepaid plan exposes a quota API, so the router derives what it can:
 
 ## Runtime failover
 
-A serving upstream answering `402/403/408/429/5xx` — or failing to connect — sends the tier walk to the next roster-ordered candidate and benches the failure:
+A serving upstream answering `402/403/408/429/5xx` — or failing to connect — is first **classified** (`router/failclass.mjs`, pure functions; unit-table tested in `tools/unit-failclass.mjs`), then walked and benched per its class:
 
-| Status | Cooldown |
-|--------|----------|
-| 429 | 5 min |
-| 402 | 15 min |
-| 403 | 30 min |
-| 5xx | 1 min |
+| Class | Trigger | Bench |
+|-------|---------|-------|
+| `quota` | 402, or usage-limit vocabulary in the body — **matched before the 429 pattern**: a subscription cap is a window hours away, not a rate limit | 30 min |
+| `rate` | 429 without usage vocabulary, rate-limit/overloaded bodies | 5 min; `Retry-After` wins |
+| `key` | 401, or 403 with key vocabulary | 60 min; remembered on `/api/state` → `keyRejections` (base-url + fingerprint, never key material) |
+| `model` | 403/404 with model vocabulary | **none — walk, don't bench**: another provider may carry the model |
+| `transient` | 408, 5xx, connection failures | 1 min |
 
-`Retry-After` wins over the table; `routing.failover.cooldowns` overrides it. Client-caused failures (400/404) pass through untouched. A walk is marked `x-router-failover`, and the failed attempt and the winner are separate ledger rows.
+Client-caused failures (400/404) pass through untouched. A quota-classified 429 does *not* honor `Retry-After` — a short header would unbench into a still-closed window. `routing.failover.cooldowns` overrides every bench. A benched provider steers as zero headroom, so it leaves the target slot while a healthy candidate exists and the walk skips it in fallback position.
+
+**Capability parity**: a fallback the roster declares unable to carry what the request holds (`manualModelRules`: `supportsImages`, `supportsTools`) is excluded from the chain *before* steering and journalled as a `parity:<capability>` ledger row. Undeclared caps gate nothing.
+
+Every walk is marked `x-router-failover`, the failed attempt and the winner are separate ledger rows with the class in the reason (`+upstream-429:rate`, `+upstream-402:quota`), and each row carries `trigger` (operator / `app:<name>`) plus `costUsd` when the roster declares prices.
 
 ## Where the code lives
 
