@@ -88,7 +88,9 @@ in the installed router can resolve `workflow-plane/*.mjs`.
   writes), risk-composed review (findings annotated with the revert risk of
   the directory they landed in), triage eval (sdm1 routing predictions
   journaled eval-only, never applied), and fleet-watch (watchdog runs flag
-  repos deviating from fleet peers).
+  repos deviating from fleet peers). Two more loops ride the semantic lane —
+  dupe-watch and render-watch (see the semantic decisions bullet below):
+  fifteen loops in all.
 - **Local browsing & keyless-first search** — the plane's net legs are a
   ladder: the operator-installed moli browser renders pages locally first
   (`browserFetch` / `web_render`, the `browser` grant — default-off), a
@@ -558,8 +560,9 @@ router/dashboard.html        the local dashboard (usage with cost + attribution,
                              delegation editor, provider caps, suggestions)
 router/README.md             router internals: routing order, judgment, MoA, quota,
                              failover, thinking levels, logs
-workflows/                   the delegation library (.dwf.ts files — the three tabular loops are
-                             .dwf too, hand-launched) and the loop library (.ts — seven loops, four probes)
+workflows/                   the delegation library (.dwf.ts files — the three tabular and two
+                             semantic loops are .dwf too, hand-launched) and the loop library
+                             (.ts — seven loops, four probes; fifteen loops in all)
 tools/run-probes.mjs         `npm test` — runs every tools/{test,unit,probe}-*.mjs by glob,
                              sequentially (fixed per-probe ports), zero model calls; every run
                              appends per-suite outcomes to the dev-decisions probe-outcomes table
