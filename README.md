@@ -310,7 +310,7 @@ metadata when omitted):
 ## How the router decides
 
 <p align="center">
-  <img src="docs/img/request-lifecycle.svg" alt="Request lifecycle: capability rules first, then the session cache, the TypeSafe judge (workload, execution, workflow, followUp), then single / mixture / swarm execution, the quota-aware tier chain walk with failover, and metering into the usage ledger" width="1080">
+  <img src="docs/img/request-lifecycle.svg" alt="Request lifecycle: capability rules first, then the session cache, the TypeSafe judge (workload, execution, workflow, followUp), then single / mixture execution, the quota-aware tier chain walk — parity excludes fallbacks that lack a declared capability, failures are classified (quota is not a rate limit, a quota body is never a key fault) and benched per class — and metering into the usage ledger with trigger and declared-price cost" width="1080">
 </p>
 
 For an `auto` request the router makes **one judgment per task** — cached, so
@@ -364,6 +364,23 @@ Capability rules are checked before any judgment and always win: a request
 carrying images goes to `omniModel`, and one wider than `wideChars` goes to
 `wideModel`. A text-only target cannot take an image, and a small-context model
 cannot swallow a million characters.
+
+**Failover classifies before it benches** (`router/failclass.mjs`, pure
+functions). Two ordering laws: usage-limit vocabulary is matched before the 429
+pattern — a subscription cap is a quota window hours away, not a rate limit —
+and quota/billing/rate-limit bodies are never a key fault. The verdict sets the
+bench (quota 30 min, rate 5 min honoring `Retry-After`, key 60 min, model gap
+walks without benching, transient 1 min); the roster's
+`routing.failover.cooldowns` still overrides. Key rejections are remembered per
+base-url + key fingerprint and surfaced on `/api/state` — fingerprint only,
+never key material. Capability parity runs before steering: a fallback the
+roster declares unable to carry what the request holds (`manualModelRules`:
+`supportsImages`, `supportsTools`) is excluded from the chain and journalled as
+`parity:<capability>` — undeclared caps gate nothing. Every ledger row names
+who brought the request (`trigger`: `operator` or `app:<name>`) and, when the
+roster declares prices (`pricing`, `pricingByModel`), what it cost
+(`costUsd` + `costSource: "price-list"` — cost is never estimated, like
+tokens).
 
 **Pinning a workload from code.** Non-agent consumers skip the judge by
 setting the request's `model` field to a profile name — `"prose"`, `"quick"`,
@@ -486,15 +503,28 @@ that registry: the kit reads `.dwf.ts` only, while the plane resolves its own
 roster.json                 this machine's roster (committed; holds no keys)
 bin/, lib/                   the CLI (one runtime dep: workflow-plane)
 router/server.js             the router itself (OpenAI-compatible proxy)
-router/usage.mjs             the usage ledger + SSE metering tap
+router/usage.mjs             the usage ledger + SSE metering tap — rows carry
+                             trigger (operator / app:<name>) and declared-price cost
 router/quota.mjs             quota derivation (calibration, headroom) and steering
+router/failclass.mjs         the failure vocabulary: quota-before-ratelimit, keys never
+                             blamed for quotas, model gaps walk without benching
+router/atomic.mjs            atomic writes (temp sibling + fsync + rename, mode on the
+                             temp inode) — twin of lib/atomic.mjs; the plane's arrives
+                             through the workflow-plane symlink
 router/suggest.mjs           the delegation-distribution suggester
-router/dashboard.html        the local dashboard (usage, delegation editor, suggestions)
+router/dashboard.html        the local dashboard (usage with cost + attribution,
+                             delegation editor, provider caps, suggestions)
 router/README.md             router internals: routing order, judgment, MoA, quota,
                              failover, thinking levels, logs
 workflows/                   the delegation library (.dwf.ts files) and the loop library (.ts)
-tools/check-plane.mjs        plane guard: this kit vs the engine checkout
-tools/probe-run-api.mjs      the run-API contract probe (33 checks, zero model calls, scratch runtime on 8399)
+tools/run-probes.mjs         `npm test` — runs every tools/{test,unit,probe}-*.mjs by glob,
+                             sequentially (fixed per-probe ports), zero model calls
+tools/fake-upstream.mjs      the scripted OpenAI-compatible provider whose model names
+                             encode failures (-429ra5, -401, -402, -500, -400, -stream)
+tools/probe-failover.mjs     the /v1 wire contract end to end: walk, benches, parity,
+                             classification, streaming meter (scratch router on 8510)
+tools/probe-run-api.mjs      the run-API contract probe (33 checks, scratch runtime on 8399)
+tools/check-plane.mjs        plane guard: this kit vs the engine checkout (npm run check:port)
 tools/verify-pack.mjs        byte-exact + schema conformance for workflows/ (needs a ZCode clone for `yaml`)
 bin/open-upstream-pr.sh      drafts the upstream contribution PR
 templates/roster.defaults.json       every roster field, documented
