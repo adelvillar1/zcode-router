@@ -85,3 +85,28 @@ The dev-decisions batch lane (2026-10-07): forecast bands, flake scores, revert-
   flags a plan the console says is fine. Remediation: re-run `npm run record:quota` so the table carries the current
   reality, and treat a band crossing as a prompt to reconcile the two reads — the loop escalates so an owner can
   answer, not because it measured the console.
+
+## Semantic lane / world.semantic
+
+The dev-decisions embeddings lane (2026-10-07 port): vector index, near-dupe pairs, nearest graded neighbors behind the
+`semantic` grant, default-off ([`docs/features/semantic-lane.md`](features/semantic-lane.md)).
+
+- **A semantic loop says unavailable.** Four absences wear the same "proceeds
+  without it" shape, and the log line names which: *dev-decisions missing* (the
+  pinned refusal — "dev-decisions not installed — the semantic grant needs the
+  dev-decisions CLI with sem1"; remediation: install the CLI or point
+  `DEV_DECISIONS_BIN` at it), *sem1 not importable* (set `DEV_DECISIONS_SEM1_PATH`
+  or install `~/Projects/sem1`), *embedding server down* (llama-server on
+  127.0.0.1:8901 unreachable; remediation:
+  `launchctl kickstart -k gui/$(id -u)/com.adelvillar1.sem1-llama`), and *no
+  index* ("no index — run `dev-decisions semantic-index` first"). Fail-open by
+  design: sweep unchanged, eval unchanged, nothing skipped.
+- **The shadow router disagrees with the judge.** Expected — that disagreement
+  is the data the logger collects (`router/logs/router.log`,
+  `kind: "semroute-shadow"`, `applied: false`). It cannot steer: fire-and-forget
+  after the verdict, nothing reads its return. Remediation: none — accrue rows;
+  a fitted agreement floor is a later wave's promotion evidence.
+- **dupe-watch reports a pair I know is not a dupe.** Near-dupe is over
+  *surrogate* text — what each redacted row still references — so shared plan
+  files can land close without similar inputs. Every pair is a lead to confirm,
+  nothing merges without an owner.

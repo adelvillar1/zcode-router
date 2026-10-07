@@ -109,6 +109,16 @@ in the installed router can resolve `workflow-plane/*.mjs`.
   or an empty table → the loop reports the absence by name and proceeds
   exactly as today. See
   [`docs/features/tabular-decisions.md`](docs/features/tabular-decisions.md).
+- **Semantic decisions** — `world.semantic` execs the dev-decisions CLI's
+  embeddings lane (the `semantic` grant, default-off, batch-only) over the
+  calibration store and named file corpora — geometry only: near-dupe pairs
+  (dupe-watch: divergent grades escalate, agreeing pairs render merge
+  proposals, nothing writes), unchanged re-render detection (render-watch, in
+  shadow — nothing is skipped), repeat findings in review-sweep carrying their
+  prior disposition (annotated, never dropped), and the router's shadow logger
+  naming what the geometry would have picked beside the judge's actual pick.
+  Embeddings propose, sys1/sdm1 dispose. See
+  [`docs/features/semantic-lane.md`](docs/features/semantic-lane.md).
 - **A run API** — `POST /v1/runs` on the kit's own wire lets an application
   spawn a workflow run under a per-app token whose `grantCeiling` bounds what
   it may request, answer the run's escalations while it is live, and collect

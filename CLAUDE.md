@@ -99,6 +99,7 @@ open http://127.0.0.1:8300/dashboard
 - The hardening wave is ported (2026-10-07): `npm test` (6 suites, ~175 checks) is the gate; `router/failclass.mjs` classifies before benching; ledger rows carry trigger + declared-price cost; durable writes are atomic. The serving process needs a service restart to run the new code.
 - Durable memory: the engine edition's store (`~/.agnostic-router-kit/memory/memory.jsonl`, pinned by `MEMORY_FILE_PATH` in the server and `lib/memory.mjs`) is live on the router.
 - The browsing + tabular port (2026-10-07): local moli browsing (`browser`/`browser-layout` grants, default-off, keyless-first search) and the dev-decisions tabular lane (`tabular` grant, six batch loops) are live in the plane via the workflow-plane symlink — `docs/features/browsing.md` + `docs/features/tabular-decisions.md`; the installed runtime lags until `kit apply` + service restart.
+- The semantic lane is ported (2026-10-07): `world.semantic` + the `semantic` grant live in the plane by construction; the kit-local shell — `router/semroute-shadow.mjs` + the `server.js` tap (fire-and-forget, eval-only), dupe-watch + render-watch (`.dwf.ts`, hand-launched), the review-sweep dedup head, the router-eval neighbor pre-pass, the producers and five probe suites — landed this wave. Embeddings propose, sys1/sdm1 dispose; nothing skips a judge in this edition. See `docs/features/semantic-lane.md`; the installed runtime lags until `kit apply` + service restart.
 
 ---
 
