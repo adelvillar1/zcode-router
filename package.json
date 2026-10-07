@@ -16,6 +16,7 @@
   },
   "scripts": {
     "kit": "node bin/zcode-router-kit.mjs",
-    "check:port": "node tools/check-plane.mjs"
+    "check:port": "node tools/check-plane.mjs",
+    "test": "node tools/run-probes.mjs"
   }
 }

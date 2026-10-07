@@ -1,0 +1,31 @@
+# One job: npm test. That is deliberately the whole CI.
+#
+# The suite is zero-model-call and zero-real-network by design: every probe
+# spawns a scratch router in its own ZCODE_ROUTER_DIR, talks to 127.0.0.1
+# only (the providers are tools/fake-upstream.mjs instances), and leaves no
+# state behind — the live ~/.zcode router and launchd service are never
+# touched by a test.
+#
+# Two guards stay local-only and are deliberately not in CI: check-plane
+# needs the engine checkout (agnostic-router-kit) beside this one, and
+# verify-pack resolves `yaml` from a ZCode checkout.
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm test
