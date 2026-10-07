@@ -33,6 +33,7 @@ import { createUsage, sseUsageTap } from "./usage.mjs";
 import { offpeakWeight, computeQuotaState, pickCandidate } from "./quota.mjs";
 import { suggestDelegation } from "./suggest.mjs";
 import { judgeViaFastino } from "./fastino.mjs";
+import { classifyFailure, rememberKeyRejection, keyRejectionView } from "./failclass.mjs";
 import { normalizeEvent, isTerminal } from "workflow-plane/events.mjs";
 import { buildGraph } from "workflow-plane/graph.mjs";
 import { runWorkflow } from "workflow-plane/engine.mjs";
@@ -825,15 +826,23 @@ async function attemptUpstream(res, body, signals, target, up, t0, attemptIndex,
       ms: Date.now() - t0,
     });
     if (FAILOVER_STATUS.has(u.status)) {
-      await u.text().catch(() => ""); // drain the error body
-      markCooldown(target.providerId, cooldownFor(u.status, u.headers.get("retry-after")), u.status);
+      // Classify before benching: the status alone conflates a dead key with
+      // an exhausted quota window and an unavailable model. The body snippet
+      // is what separates the vocabulary — quota bodies are matched before
+      // the rate pattern, and neither is ever a key fault.
+      const errBody = (await u.text().catch(() => "")).slice(0, 400);
+      const cls = classifyFailure({ status: u.status, body: errBody });
+      if (cls.isKeyFault) {
+        rememberKeyRejection({ providerId: target.providerId, baseUrl: up.baseUrl, key: up.apiKey, status: u.status, label: cls.label });
+      }
+      markCooldown(target.providerId, cooldownFor(u.status, u.headers.get("retry-after"), cls), u.status);
       usage.record({
         providerId: target.providerId,
         model: target.model,
         workload: target.workload,
         execution: target.execution ?? "single",
         requested: signals.requestedModel,
-        reason: `${failover ? `failover:${attemptIndex}` : target.reason ?? "route"}+upstream-${u.status}`,
+        reason: `${failover ? `failover:${attemptIndex}` : target.reason ?? "route"}+upstream-${u.status}:${cls.kind}`,
         status: u.status,
         ms: Date.now() - t0,
         stream: signals.stream,
@@ -1071,12 +1080,19 @@ function parseRetryAfter(v) {
   return Number.isFinite(at) ? Math.max(0, at - Date.now()) : null;
 }
 
-function cooldownFor(status, retryAfterHeader) {
-  const declared = R.failover?.cooldowns?.[status] ?? FAIL_COOLDOWNS_MS[status] ?? 60_000;
-  // Honor Retry-After when the provider sent one (429/503 are the honest
-  // cases); cap it so a nonsense header can't bench a provider for a day.
-  const ra = status === 429 || status === 503 ? parseRetryAfter(retryAfterHeader) : null;
-  return ra != null ? Math.min(Math.max(ra, 1000), 3600_000) : declared;
+function cooldownFor(status, retryAfterHeader, cls = null) {
+  const declared = R.failover?.cooldowns?.[status] ?? null;
+  if (declared != null) return declared;
+  // Honor Retry-After when the provider sent one — the honest rate-limit and
+  // transient cases (429/503), capped so a nonsense header can't bench a
+  // provider for a day. A 429 that classified as quota does NOT honor it: the
+  // window is hours away, and a short header would unbench into a closed
+  // window.
+  const honest = !cls || cls.kind === "rate" || cls.kind === "transient";
+  const ra = (status === 429 || status === 503) && honest ? parseRetryAfter(retryAfterHeader) : null;
+  if (ra != null) return Math.min(Math.max(ra, 1000), 3600_000);
+  if (cls?.benchMs != null) return cls.benchMs;
+  return FAIL_COOLDOWNS_MS[status] ?? 60_000;
 }
 
 function markCooldown(pid, ms, status) {
@@ -1863,6 +1879,10 @@ const server = http.createServer((req, res) => {
             },
             workflows: R.workflows ?? [],
             workflowLibrary: Array.isArray(config.workflowLibrary) ? config.workflowLibrary : [],
+            // Keys a provider actually refused, fingerprinted (never key
+            // material). Quota/billing/rate-limit failures deliberately do
+            // not appear here — the key is not the thing that is exhausted.
+            keyRejections: keyRejectionView(),
           },
           quota: {
             minHeadroom: R.quotaMinHeadroom ?? 0.4,
