@@ -40,3 +40,17 @@ recorded state; `.dwf` loops run by explicit path until the loader learns the fl
 plane until then, and the shadow tap needs the local sem1 llama-server (127.0.0.1:8901) to warm (a cold server disables
 the logger by name; routing unchanged). The promotion triggers are the engine's: render-watch's flip, the shadow
 router's shortlist, dupe-merge application, memory-plane recall — each names its own evidence first.
+
+## Follow-up (same day, docs honesty pass)
+
+- **The loop count told straight** (`28d9e4f`): the kit README's store bullet, its module map, and the FUNC-SPEC
+  library paragraph now lead with **fifteen loops in all** (seven library shapes, six tabular, two semantic-lane loops);
+  the module map notes five `.dwf` hand-launched loops (three tabular + two semantic), not three.
+- **The workflow inventory, generated** (`187cc07`): `tools/render-workflow-inventory.mjs` reads the same parse
+  `kit apply` runs — `workflowlib`'s parser over the `.dwf.ts` library and `buildRegistry` against the roster — and
+  writes the README's table between markers; the `.ts` loop files' engine-flavor headers ride the same parser via
+  marker rewrite. `npm run workflows:inventory` refreshes, `--check` fails stale. Its first live run corrected the
+  docs' own count: **20 router-assignable / 17 hand-launched**, not 19/18 (adversarial-solve's `task` arg
+  auto-derives). Two generator bugs found and fixed before landing: a marker "regex" full of metacharacters that
+  never matched and silently reported "current" over a stale table (now index slicing), and a four-cell row against a
+  three-column header.
