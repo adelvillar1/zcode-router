@@ -1481,18 +1481,6 @@ const server = http.createServer((req, res) => {
         return;
       }
     }
-    if (req.method === "POST" && (req.url === "/route" || req.url === "/v1/route")) {
-      try {
-        return await handleRoute(res, raw);
-      } catch (err) {
-        log({ event: "route-verdict", error: "handler:" + String(err?.stack ?? err).slice(0, 300) });
-        if (!res.writableEnded && !res.destroyed) {
-          res.writeHead(500, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: { message: "router: /route internal error" } }));
-        }
-        return;
-      }
-    }
     if (req.method === "POST" && (req.url === "/v1/chat/completions" || req.url === "/chat/completions")) {
       let body;
       try {
@@ -1874,7 +1862,7 @@ const server = http.createServer((req, res) => {
               workflowMinConfidence: R.workflowMinConfidence ?? null,
             },
             workflows: R.workflows ?? [],
-            workflowLibrary: config.workflowLibrary ?? null,
+            workflowLibrary: Array.isArray(config.workflowLibrary) ? config.workflowLibrary : [],
           },
           quota: {
             minHeadroom: R.quotaMinHeadroom ?? 0.4,
@@ -1999,6 +1987,13 @@ const server = http.createServer((req, res) => {
               read.cum = usage.cumulativeWeighted(pid);
             }
           }
+        }
+        // Strip render-derived artifacts the dashboard merges into provider
+        // rows: hasKey is runtime state (the runtime .env decides), id
+        // duplicates the object key. The tracked roster is the curated
+        // source — it never carries the dashboard's derived columns.
+        for (const p of Object.values(candidate.providers ?? {})) {
+          if (p && typeof p === "object") { delete p.hasKey; delete p.id; }
         }
         const result = await applyRoster(candidate);
         jsonOut(result.ok ? 200 : 409, { ok: result.ok, output: result.output, restartRecommended: result.restartRecommended });
