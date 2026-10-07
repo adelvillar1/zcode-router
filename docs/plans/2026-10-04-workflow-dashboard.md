@@ -1,7 +1,7 @@
 ---
-status: active
+status: completed
 created: 2026-10-04
-updated: 2026-10-05
+updated: 2026-10-07
 slug: workflow-dashboard
 ---
 
