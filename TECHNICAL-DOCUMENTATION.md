@@ -67,7 +67,7 @@ Full request lifecycle: `docs/features/judge-delegation.md`; rendering and safet
 
 ## 4. State & Storage
 
-There is no database. Four kinds of state:
+There is no database. Five kinds of state:
 
 | State | Location | Written by | Committed? |
 |-------|----------|------------|------------|
@@ -77,6 +77,7 @@ There is no database. Four kinds of state:
 | Usage ledger | `~/.zcode/router/logs/usage.json` | router (atomic write, debounced ~3s, 30-day retention, 200-entry recent ring) | no |
 | Router keys | `~/.zcode/router/.env` (chmod 600) | `kit env set` | no — never |
 | Workflow runs | `~/.zcode/router/workflow-runs/<run>/` (`AGNOSTIC_ROUTER_KIT_HOME`; both the CLI and the server-spawned run API write here) | plane run (journal, facts, artifacts, `answers.jsonl`, `summary.json`) | no |
+| Durable memory | `~/.agnostic-router-kit/memory/memory.jsonl` — the engine edition's store: one graph on this machine, pinned by `MEMORY_FILE_PATH` in both `router/server.js` and `lib/memory.mjs` | the plane (`lib/workflow/memory.mjs`, reached through `kit memory`, `/api/memory`, `/v1/memory`, and the MCP server ZCode's config points at) | no |
 
 Migration strategy: none needed — schema evolution lives in the roster's documented shape (`templates/roster.defaults.json`) and the `schemaVersion: 1` guard on provider config.
 
@@ -97,8 +98,12 @@ OpenAI-compatible, loopback-only, on `127.0.0.1:8300`. All endpoints except `/he
 | POST | `/v1/runs` | **run API** — an application spawns a workflow run (`{workflow, args, facts, grants, answers, workdir}`) |
 | POST | `/v1/runs/<id>/answers` | **run API** — answer a live escalation (`{topic, answer}` → `answers.jsonl`) |
 | GET | `/v1/runs/<id>/artifacts` | **run API** — the versioned artifact index; `?file=` downloads one file, inside this run only |
+| GET/POST | `/v1/memory` | **memory plane** — `?q=` ranked search / stats (GET); entity, entities, relations, observations, or `fact` writes (POST). An app token is refused by name unless its `grantCeiling` includes `memory`; writes are typed `app:<name>` |
+| GET/POST | `/api/memory` | **memory plane, operator scope** — search, stats, write on the same store |
 
 Two token classes share the bearer gate: the **operator token** (no ceiling, spawns anywhere, answers and reads any run) and **app tokens** — `router.apps` roster rows with a `grantCeiling` (and optional `workdir`). An app spawns under its declared ceiling or is refused by name (`403 out of bounds: …`), runs inside its own sandbox root, answers and reads only the runs it spawned. Refused spawns journal `run-spawn-refused` with the rule that fired.
+
+**Everything under `/api/` is operator-class.** The block used to admit any valid bearer token; an app token now gets `403 this surface needs the operator token — apps act through /v1` there (memory included) — every app-legitimate surface lives under `/v1`, scoped by its ceiling. The `/api/workflow-events` SSE stream still accepts either class via `?token=`.
 
 Responses carry `x-router-execution`, `x-router-workload`, `x-router-workflow`; a tier walk adds `x-router-failover`. Versioning: none — this is a personal single-consumer API. The pre-existing run-read surfaces (`/api/workflow-runs`, `/api/workflow-run/<id>`, `/api/workflow-graph`, the `/api/workflow-events` SSE stream — which accepts either token class via `?token=`) serve app-spawned runs unchanged; operational detail in `docs/features/run-api.md`.
 ## 6. Local Security Model
@@ -148,12 +153,12 @@ The cycle compresses for trivial work — typos and one-line fixes don't need a 
 
 ## 11. CLI Scripts Reference
 
-`bin/zcode-router-kit.mjs` (alias `kit`): `status` · `init [--template] [--force]` · `export` · `env set|unset|list` · `apply [--dry-run] [--only router]` · `doctor [--live]` · `workflows list|sync|run|watch|graph` · `route "<task>"` · `upgrade`. `kit workflows run <file|name>` drives a workflow through the ported plane with `--args/--answers/--grant/--allow-domain/--allow-cmd/--max-rounds/--compact-tokens` and prints the run's token spend; `--grant net-search` also arms the search backend, whose keys are resolved at the boundary from the runtime `.env` (`kit env set FIRECRAWL_API_KEY / FIRECRAWL_SCRAPE_URL / FIRECRAWL_SCRAPE_VERSION`). `watch`/`graph` replay a finished run's journal as text or a DAG. `kit status` prints the run-API app rows (name + ceiling). Dev tools: `tools/verify-pack.mjs` (pack self-check), `tools/probe-run-api.mjs` (the run-API contract probe — 33 checks, zero model calls, scratch runtime on 8399), `bin/open-upstream-pr.sh` (documents the upstream PR path).
+`bin/zcode-router-kit.mjs` (alias `kit`): `status` · `init [--template] [--force]` · `export` · `env set|unset|list` · `apply [--dry-run] [--only router]` · `doctor [--live]` · `memory …` · `workflows list|sync|run|watch|graph` · `route "<task>"` · `upgrade`. `kit workflows run <file|name>` drives a workflow through the ported plane with `--args/--answers/--grant/--allow-domain/--allow-cmd/--max-rounds/--compact-tokens` and prints the run's token spend; `--grant net-search` also arms the search backend, whose keys are resolved at the boundary from the runtime `.env` (`kit env set FIRECRAWL_API_KEY / FIRECRAWL_SCRAPE_URL / FIRECRAWL_SCRAPE_VERSION`). `watch`/`graph` replay a finished run's journal as text or a DAG. `kit status` prints the run-API app rows (name + ceiling). `kit memory` is the durable memory plane on the engine edition's store: `stats | search <q> | remember <text> [--importance --veracity --extract --scope] | scratch add|list|clear | facts [--conflicts] | consolidate [--dry-run] | resolve <loser> <winner> | invalidate <id> | gc [--dry-run] | config | import --from mnemosyne|official`; `config` prints the `mcpServers.memory` snippet, and `doctor` reports the store once it exists. Dev tools: `tools/verify-pack.mjs` (pack self-check), `tools/probe-run-api.mjs` (the run-API contract probe — 33 checks, zero model calls, scratch runtime on 8399), `tools/probe-memory.mjs` (store + CLI contract — 49 checks, scratch store and home), `tools/probe-memory-api.mjs` (the memory wire law — 15 checks, scratch router on 8392), `bin/open-upstream-pr.sh` (documents the upstream PR path).
 
 ## 12. Observability
 
 - **Ledger**: per-model, per-day calls / errors / prompt+completion tokens — recorded only when the upstream reported usage, never estimated. Mixture proposers are metered too.
-- **Logs**: `~/.zcode/router/logs/router.log` — `route`, `route-verdict`, `mixture`, and degraded-decision tags `judge:no-key` / `judge:error:…` / `judge:low-confidence`, failover walks, and remaps.
+- **Logs**: `~/.zcode/router/logs/router.log` — `route`, `route-verdict`, `mixture`, and degraded-decision tags `judge:no-key` / `judge:error:…` / `judge:low-confidence`, failover walks, and remaps. Memory writes and refusals land here too: `memory-write` (app or operator, added count) and `memory-refused` (app, the rule that refused it).
 - **Headers**: every response names its execution, workload, and workflow; `x-router-failover` marks a tier walk.
 - **Doctor**: `kit doctor [--live]` verifies the whole chain (roster → config → runtime → service → health → tier resolution → provider registration); remaps and skipped workflows are reported, never silent.
 - **Run journals**: each run's `run.jsonl` records its full event stream — `run-start` (carrying `app`, `grants` as an array, and facts), every agent ask, every tool call with the grant it used, every escalation and the source that resolved it (`declared` | `live` | `owner` | `none`), every refusal, and the artifact publishes. Search lines carry the query, `results`, and `creditsUsed`; judge verdicts name their backend (`sys1.judge` → `dev-decisions` or raw sys1).

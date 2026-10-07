@@ -87,6 +87,15 @@ in the installed router can resolve `workflow-plane/*.mjs`.
   its deliverable from the artifacts index. The operator token keeps its
   ceiling-free reach; an app token's blast radius is its ceiling and its
   sandbox, which is the point of ceilings.
+- **A durable memory plane** — one JSONL graph on this machine (the engine
+  edition's store, which ZCode's own `mcpServers.memory` config already points
+  at) in the official MCP memory server's format, so any harness reads it with
+  no adapter. Facts compound their confidence, disagreements register as
+  conflicts instead of overwriting, a scratch tier expires on a TTL and
+  consolidates additively, and recall ranks by importance, recency, veracity,
+  and mentions. `kit memory` drives it from the terminal; the router serves it
+  over `/api/memory` (operator) and `/v1/memory` (apps with the `memory`
+  capability) — the same store, one graph, never a second copy.
 - **A usage ledger + dashboard** — the router meters every upstream call
   (calls, errors, prompt/completion tokens, latency) per model and per day —
   losing mixture proposers included, because a prepaid plan pays for those

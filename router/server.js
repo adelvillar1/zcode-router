@@ -40,6 +40,19 @@ import { resolveGrants } from "workflow-plane/tools.mjs";
 import { FACT_KINDS } from "workflow-plane/harness.mjs";
 import { slug, freeRunDir } from "workflow-plane/runstate.mjs";
 import { parseHeader, validateArgs } from "workflow-plane/meta.mjs";
+import {
+  loadGraph,
+  saveGraph,
+  createEntities,
+  createRelations,
+  addObservations,
+  addFact,
+  detectConflicts,
+  extractMentions,
+  searchGraph,
+  memoryStats,
+  memoryStorePath,
+} from "workflow-plane/memory.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const expand = (p) => (p.startsWith("~") ? path.join(os.homedir(), p.slice(1)) : p);
@@ -1153,6 +1166,13 @@ const KIT_HOME_DIR = process.env.AGNOSTIC_ROUTER_KIT_HOME
 // at: the spawn answers, then its own artifacts route 404s. The kit CLI sets
 // the same override (lib/cli.mjs).
 process.env.AGNOSTIC_ROUTER_KIT_HOME ??= KIT_HOME_DIR;
+// The durable memory store is ONE file on this machine — the engine edition's
+// own, which ZCode's MCP config already points its memory server at. The
+// plane resolves MEMORY_FILE_PATH first (the same contract the MCP bin
+// documents), so pin it here: without it this server's memoryStorePath()
+// would default to its own kit home and the two editions would quietly keep
+// two graphs that never meet.
+process.env.MEMORY_FILE_PATH ??= expand("~/.agnostic-router-kit/memory/memory.jsonl");
 const WORKFLOW_RUNS_DIR = path.join(KIT_HOME_DIR, "workflow-runs");
 const RUN_BUFFER_CAP = 500;
 const wfRuns = new Map(); // runId -> { name, offset, partial, buffer, count, startedAt, lastEventAt, terminal, summary, gnodes }
@@ -1505,6 +1525,71 @@ const server = http.createServer((req, res) => {
       res.writeHead(code, { "Content-Type": "application/json", "Cache-Control": "no-store" });
       res.end(JSON.stringify(obj));
     };
+    // The durable memory plane over the app wire: read/search/write, gated by
+    // the `memory` capability in the caller's ceiling — an app without it is
+    // refused by name, the same blast-radius rule as a spawn grant. The store
+    // is the engine edition's own graph (pinned above), so an app remembers
+    // here and reads back the same facts the operator sees.
+    if (req.url === "/v1/memory" || req.url.startsWith("/v1/memory?")) {
+      const u = new URL(req.url, "http://localhost");
+      const memApp = caller.operator ? null : caller.app;
+      const memRefuse = (code, error) => {
+        log({ event: "memory-refused", app: memApp ? memApp.name : "operator", detail: String(error).slice(0, 300) });
+        jsonOut(code, { ok: false, error });
+      };
+      const ceilingOk = caller.operator || (Array.isArray(memApp?.grantCeiling) && memApp.grantCeiling.includes("memory"));
+      if (!ceilingOk) {
+        memRefuse(
+          403,
+          caller.operator
+            ? "the operator token holds every capability — this refusal is a wiring bug"
+            : `out of bounds: memory is not in ${memApp.name}'s ceiling — an app reads and writes durable memory only with the memory capability`,
+        );
+        return;
+      }
+      try {
+        if (req.method === "GET") {
+          const q = u.searchParams.get("q");
+          const graph = loadGraph(memoryStorePath());
+          if (q) return jsonOut(200, { ok: true, entities: searchGraph(graph, q, { limit: Number(u.searchParams.get("limit")) || 25 }) });
+          return jsonOut(200, { ok: true, stats: memoryStats(graph) });
+        }
+        if (req.method === "POST") {
+          let body;
+          try { body = JSON.parse(raw || ""); } catch { return jsonOut(400, { ok: false, error: "body is not valid JSON" }); }
+          const graph = loadGraph(memoryStorePath());
+          const result = {};
+          if (typeof body.entity === "string") {
+            const r = createEntities(graph, [{
+              name: String(body.entity).slice(0, 200),
+              entityType: caller.operator ? "operator" : `app:${caller.app.name}`,
+              observations: [String(body.observation ?? body.text ?? "")].filter(Boolean),
+              ...(body.importance !== undefined ? { importance: body.importance } : {}),
+              ...(body.veracity !== undefined ? { veracity: body.veracity } : {}),
+              ...(body.validUntil !== undefined ? { validUntil: body.validUntil } : {}),
+              ...(body.scope !== undefined ? { scope: body.scope } : {}),
+              ...(body.extract ? { mentions: extractMentions(String(body.entity)) } : {}),
+            }]);
+            result.added = r.added;
+          } else if (Array.isArray(body.entities)) result.added = createEntities(graph, body.entities).added;
+          else if (Array.isArray(body.observations)) {
+            try { result.observations = addObservations(graph, body.observations).added; }
+            catch (e) { return jsonOut(400, { ok: false, error: String(e?.message ?? e) }); }
+          } else if (Array.isArray(body.relations)) result.relations = createRelations(graph, body.relations).added;
+          else if (body.fact) {
+            result.fact = addFact(graph, { ...body.fact, source: caller.operator ? "operator" : `app:${caller.app.name}` });
+            result.conflicts = detectConflicts(graph);
+          }
+          else return jsonOut(400, { ok: false, error: "send entity+observation, entities, relations, observations, or fact" });
+          saveGraph(graph, memoryStorePath());
+          log({ event: "memory-write", app: caller.operator ? "operator" : caller.app.name, added: result.added?.length ?? 0 });
+          return jsonOut(200, { ok: true, ...result });
+        }
+        return jsonOut(405, { ok: false, error: "method not allowed" });
+      } catch (e) {
+        return jsonOut(500, { ok: false, error: String(e?.message ?? e).slice(0, 200) });
+      }
+    }
     if (req.method === "POST" && req.url === "/v1/runs") {
       let body;
       try {
@@ -1753,6 +1838,15 @@ const server = http.createServer((req, res) => {
         res.writeHead(code, { "Content-Type": "application/json", "Cache-Control": "no-store" });
         res.end(JSON.stringify(obj));
       };
+      // The control plane is operator-class, full stop: these routes rewrite
+      // the roster (and re-run apply), read the ledger, and answer runs. An
+      // app token used to pass on validity alone — one with an empty
+      // grantCeiling could have rewritten the roster from the browser.
+      // Everything an app legitimately needs lives under /v1, scoped there.
+      if (!caller.operator) {
+        jsonOut(403, { ok: false, error: "this surface needs the operator token — apps act through /v1" });
+        return;
+      }
       if (req.method === "GET" && req.url === "/api/state") {
         const r = readRoster();
         const roster = r.ok ? r.roster : null;
@@ -1931,6 +2025,42 @@ const server = http.createServer((req, res) => {
           jsonOut(500, { ok: false, error: String(e?.message ?? e).slice(0, 200) });
         }
         return;
+      }
+      // The durable memory plane, operator scope: search, stats, write.
+      // The store is the engine edition's own JSONL graph (workflow-plane/
+      // memory.mjs, pinned above); writes are atomic and attributed in the
+      // router log. Apps reach the same graph through /v1/memory.
+      if (req.url.startsWith("/api/memory")) {
+        const u = new URL(req.url, "http://localhost");
+        try {
+          if (req.method === "GET") {
+            const q = u.searchParams.get("q");
+            const graph = loadGraph(memoryStorePath());
+            if (q) return jsonOut(200, { ok: true, entities: searchGraph(graph, q, { limit: Number(u.searchParams.get("limit")) || 25 }) });
+            return jsonOut(200, { ok: true, stats: memoryStats(graph) });
+          }
+          if (req.method === "POST") {
+            let body;
+            try { body = JSON.parse(raw || ""); } catch { return jsonOut(400, { ok: false, error: "body is not valid JSON" }); }
+            const graph = loadGraph(memoryStorePath());
+            let result = { added: [] };
+            if (Array.isArray(body.entities)) result = createEntities(graph, body.entities);
+            if (Array.isArray(body.relations)) result.relations = createRelations(graph, body.relations).added;
+            if (Array.isArray(body.observations)) {
+              try { result.observations = addObservations(graph, body.observations).added; }
+              catch (e) { return jsonOut(400, { ok: false, error: String(e?.message ?? e) }); }
+            }
+            if (body.fact) {
+              result.fact = addFact(graph, { ...body.fact, source: "operator" });
+              result.conflicts = detectConflicts(graph);
+            }
+            saveGraph(graph, memoryStorePath());
+            log({ event: "memory-write", caller: "operator", entities: result.added?.length ?? 0 });
+            return jsonOut(200, { ok: true, ...result });
+          }
+        } catch (e) {
+          return jsonOut(500, { ok: false, error: String(e?.message ?? e).slice(0, 200) });
+        }
       }
       jsonOut(404, { ok: false, error: "router: unknown api path" });
       return;

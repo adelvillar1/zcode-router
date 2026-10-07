@@ -46,6 +46,7 @@ Keys, runtime paths, and service details → `CLAUDE.local.md`.
 - Usage ledger, quota calibration, steering, failover cooldowns → `docs/features/quota-failover.md`
 - Dashboard (usage ledger, delegation editor, suggestions) → `docs/features/dashboard.md`
 - `kit apply` safety: backups, surgical merge, schema guard → `docs/features/provider-config-merge.md`
+- The durable memory plane (one store, the pins, `/api/memory` + `/v1/memory`, `kit memory`) → `docs/features/memory.md`
 
 **Reference**
 - Business context → `docs/BUSINESS-CONTEXT.md`
@@ -95,6 +96,7 @@ open http://127.0.0.1:8300/dashboard
 - Router up on 127.0.0.1:8300; launchd service `com.zcode.model-router` loaded; `kit doctor` green (2026-09-29).
 - 32 workflows installed — 19 router-assignable, 13 hand-launched.
 - Tiers: quick & standard_code → token-plan/qwen3.8-flash · hard → zai-coding-plan/GLM-5.3-Flash · prose → xiaomi-mimo/mimo-v2.6-flash · deep_context → stepfun/step-5-preview.
+- Durable memory: the engine edition's store (`~/.agnostic-router-kit/memory/memory.jsonl`, pinned by `MEMORY_FILE_PATH` in the server and `lib/memory.mjs`) is live on the router — the routes need a service restart to be served by the running process.
 - `roster.json` has uncommitted modifications in the working tree.
 
 ---

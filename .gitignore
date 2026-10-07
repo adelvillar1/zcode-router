@@ -33,3 +33,6 @@ CLAUDE.local.md
 docs/architecture/*.finalize*.json
 docs/architecture/*.delivery.json
 docs/architecture/*.browser-check.json
+
+# session scratch the harness writes into the repo — never committed
+.zcode/
