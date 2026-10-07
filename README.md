@@ -11,7 +11,7 @@ and it comes up identical.
 roster.json ──kit apply──┬── ~/.zcode/router/config.json       tier table, MoA, workflow registry
                          ├── ~/.zcode/v2/provider_config.json  the providers the model picker shows
                          ├── ~/.zcode/workflows/*.dwf.ts       the delegation library
-                         ├── ~/.zcode/lib/workflow/*.mjs       the 14-module workflow plane
+                         ├── ~/.zcode/lib/workflow/*.mjs       the 16-module workflow plane
                          └── launchd / systemd service          keeps the router running
 ```
 
@@ -29,7 +29,7 @@ saved `.dwf.ts` files — the library. The engine that decomposes, builds,
 coordinates and review-rounds them is a separate package, `workflow-plane`,
 which lives in the engine checkout next to this one (`../agnostic-router-kit`
 by convention). This repo resolves it as a `file:` dependency on that checkout
-and `kit apply` ships its 14 modules beside the router at
+and `kit apply` ships its 16 modules beside the router at
 `~/.zcode/lib/workflow/`, with a `node_modules/workflow-plane` link so the
 shipped server's imports resolve inside the install. The engine edition is
 where the plane is developed and versioned; this kit is one of its consumers.
@@ -80,7 +80,35 @@ in the installed router can resolve `workflow-plane/*.mjs`.
   workflows (deep-research, triage, refine-loop, red-team, watchdog,
   remediate, router-eval) plus four zero-model-call probes — in which every
   flat judgment rides the dev-decisions/sys1 judge layer instead of a model
-  call, and search credits are structurally unspendable by agents.
+  call, and search credits are structurally unspendable by agents. Six
+  tabular loops ride the dev-decisions lane: quota-forecast (per-plan
+  exhaustion bands; an in-band crossing escalates), flake-watch (known-flaky
+  suites named — quarantine, don't chase), calibrate-floors (proposed
+  per-head confidence floors beside the static ones — proposes, never
+  writes), risk-composed review (findings annotated with the revert risk of
+  the directory they landed in), triage eval (sdm1 routing predictions
+  journaled eval-only, never applied), and fleet-watch (watchdog runs flag
+  repos deviating from fleet peers).
+- **Local browsing & keyless-first search** — the plane's net legs are a
+  ladder: the operator-installed moli browser renders pages locally first
+  (`browserFetch` / `web_render`, the `browser` grant — default-off), a
+  self-hosted Firecrawl (`FIRECRAWL_SCRAPE_URL`) is the scrape ladder's
+  middle rung, and the plain bounded fetch is the floor; the journal's
+  `via` names the leg that answered. Search is keyless-first — DuckDuckGo,
+  `creditsUsed: 0` — with Firecrawl as the quality fallback reached only
+  when DDG came up empty *and* the key actually resolves. moli is never
+  bundled and never auto-downloaded; `kit doctor` reports the install. See
+  [`docs/features/browsing.md`](docs/features/browsing.md).
+- **Tabular decisions** — `world.tabular` execs the dev-decisions CLI's
+  tabular lane over the tables the kit already produces (the usage ledger's
+  hourly weighted spend, the probe outcomes `npm test` appends, git
+  history) in dev-decisions' own store dir, behind the `tabular` grant
+  (default-off). Batch-only by law: loops call it between rounds, never
+  inside an ask — no TabPFN network call ever runs in a synchronous path.
+  Fail-open by construction: absent CLI, absent sdm1 key (`TABPFN_API_KEY`),
+  or an empty table → the loop reports the absence by name and proceeds
+  exactly as today. See
+  [`docs/features/tabular-decisions.md`](docs/features/tabular-decisions.md).
 - **A run API** — `POST /v1/runs` on the kit's own wire lets an application
   spawn a workflow run under a per-app token whose `grantCeiling` bounds what
   it may request, answer the run's escalations while it is live, and collect
@@ -434,8 +462,9 @@ The library's fan-out workflows: `swarm` (decompose, build, review),
 (changes whose findings get confirmed before anyone acts), `deep-dive`,
 `decision-memo`, `data-triage`, `regression-claim-verification`,
 `coverage-push`, `migration`, `plan-backlog-generation`, `postmortem`. Of the
-32 workflows in `workflows/`, 19 are assignable by the router; the rest take
-structured arguments rather than a task and stay hand-launched.
+35 workflows in `workflows/`, 19 are assignable by the router; the rest take
+structured arguments rather than a task and stay hand-launched — the three
+tabular loops among them.
 
 **Asking the router directly** — `POST /route` (local token) returns the same
 verdict without calling any model:
@@ -491,11 +520,14 @@ that registry: the kit reads `.dwf.ts` only, while the plane resolves its own
   not the machine.
 - **Run capabilities are grants, not ambient power.** Every capability a run
   uses (workspace io, net-fetch, net-search, installs, dev servers, background
-  commands, sub-agents) is declared at spawn and journalled against the call
-  that used it. Search keys resolve from `~/.zcode/router/.env` at the wire,
-  so neither the CLI nor the workflows carry key material — a key-neutrality
-  grep over `lib/` and `workflows/` returns 0, and a missing key is a
-  configured absence that names the variable rather than a crash.
+  commands, sub-agents, local browsing via moli — `browser`/`browser-layout` —
+  and the tabular lane, `tabular`; the last three default-off) is declared at
+  spawn and journalled against the call that used it. Search keys resolve from
+  `~/.zcode/router/.env` at the wire, so neither the CLI nor the workflows
+  carry key material — a key-neutrality grep over `lib/` and `workflows/`
+  returns 0, and a missing key is a configured absence that names the variable
+  rather than a crash. Search is keyless-first (DuckDuckGo), so the common
+  search spends no key at all.
 
 ## Layout
 
@@ -516,9 +548,14 @@ router/dashboard.html        the local dashboard (usage with cost + attribution,
                              delegation editor, provider caps, suggestions)
 router/README.md             router internals: routing order, judgment, MoA, quota,
                              failover, thinking levels, logs
-workflows/                   the delegation library (.dwf.ts files) and the loop library (.ts)
+workflows/                   the delegation library (.dwf.ts files — the three tabular loops are
+                             .dwf too, hand-launched) and the loop library (.ts — seven loops, four probes)
 tools/run-probes.mjs         `npm test` — runs every tools/{test,unit,probe}-*.mjs by glob,
-                             sequentially (fixed per-probe ports), zero model calls
+                             sequentially (fixed per-probe ports), zero model calls; every run
+                             appends per-suite outcomes to the dev-decisions probe-outcomes table
+tools/record-quota-table.mjs `npm run record:quota` — the usage ledger's hourly weighted spend
+                             (~/.zcode/router/logs/usage.json) into the dev-decisions store's
+                             quota-spend table, idempotent per bucket
 tools/fake-upstream.mjs      the scripted OpenAI-compatible provider whose model names
                              encode failures (-429ra5, -401, -402, -500, -400, -stream)
 tools/probe-failover.mjs     the /v1 wire contract end to end: walk, benches, parity,
@@ -533,7 +570,7 @@ docs/architecture/           the package-boundary diagram + architecture overvie
 docs/upstream-contribution.md        plan for contributing back to ZCode
 ```
 
-The workflow engine is **not** in this repo. `workflow-plane` — the 14 modules
+The workflow engine is **not** in this repo. `workflow-plane` — the 16 modules
 that decompose, build, coordinate and review-round a swarm — is resolved from
 the engine checkout as a `file:` dependency and installed to
 `~/.zcode/lib/workflow/` beside the router (see above). Editing it here would

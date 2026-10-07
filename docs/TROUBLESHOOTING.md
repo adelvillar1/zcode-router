@@ -46,3 +46,42 @@ Treat `!` lines as things to explain, and remaps as real (a fallback fired becau
 ## Key problems
 
 - Keys live only in `~/.zcode/router/.env` (600): `kit env list` shows what's set vs required; `kit env set NAME=value` sets. A raw key in `roster.json` is a hard-rule violation — move it to the env file and reference `apiKeyEnv`.
+
+## Browser-rendered scrapes / web_render
+
+The local browsing stack (2026-10-07): rendered fetch and scrapes run through the operator-installed moli binary behind
+the `browser` grant; search is keyless-first ([`docs/features/browsing.md`](features/browsing.md)).
+
+- **`web_render` refused.** Either the run was spawned without the grant (`capability not granted in this run: browser`
+  — the refusal is journalled) or moli is not on PATH (*"browser not installed — the browser grant needs moli on
+  PATH"*). Remediation: re-spawn with `--grant browser`, and install the pinned moli release per
+  [`docs/features/browsing.md`](features/browsing.md) — `kit doctor` reports which of the two it is (green moli line =
+  the grant was missing; dim moli note = the binary is).
+- **Rendered content is still thin.** Some sites only paint behind moli's layout mode, which the `browser-layout`
+  grant (not plain `browser`) gates. Remediation: spawn with `--grant browser-layout` and a `waitSelector` for the
+  selector the page paints late.
+- **Search returned few rows.** DuckDuckGo rate-limits or comes up empty; `auto` falls back to Firecrawl only when
+  `FIRECRAWL_API_KEY` resolves — without the key, DDG's (possibly empty) answer is the honest result. Remediation:
+  check the run journal's search line — the `via`/backend names which leg answered — then set the key
+  (`kit env set FIRECRAWL_API_KEY=…`) or pin `backend: "duckduckgo"|"firecrawl"` explicitly.
+
+## Tabular loops / world.tabular
+
+The dev-decisions batch lane (2026-10-07): forecast bands, flake scores, revert-risk priors, fleet anomalies behind the
+`tabular` grant, default-off ([`docs/features/tabular-decisions.md`](features/tabular-decisions.md)).
+
+- **A tabular loop says unavailable.** Three distinct absences wear the same "proceeds without it" shape, and the log
+  line names which: *dev-decisions missing* (the pinned refusal — "dev-decisions not installed — the tabular grant
+  needs the dev-decisions CLI (see docs)"; remediation: install the CLI or point `DEV_DECISIONS_BIN` at it), *no sdm1*
+  (the CLI answers "tabpfn-hosted backend is not configured: set TABPFN_API_KEY" — remediation: set the key, or accept
+  the mechanical-fallback rows some verbs still print), and *empty table* (the verb ran but its store table has no rows
+  yet — `risk_prior.csv`, `quota-spend.csv`, `probe-outcomes.csv` under `~/.local/share/dev-decisions/tables/` grow
+  only when their producers run: dev-decisions' own verbs, `npm run record:quota`, `npm test`). This is fail-open by
+  design: findings unannotated, triage byte-identical, watchdog proceeding. Remediation: none required — run the
+  producer whose table is empty and the next loop run picks it up.
+- **The forecast band flags a plan I know is fine.** The quota-forecast band is a quantile band over the *recorded
+  weighted spend* in `quota-spend.csv`, not over the provider console's own remaining-quota read — a top-up on the
+  console, a changed allowance, or a weekend-long idle stretch makes the table and the console disagree, and the band
+  flags a plan the console says is fine. Remediation: re-run `npm run record:quota` so the table carries the current
+  reality, and treat a band crossing as a prompt to reconcile the two reads — the loop escalates so an owner can
+  answer, not because it measured the console.
