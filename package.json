@@ -18,6 +18,7 @@
     "kit": "node bin/zcode-router-kit.mjs",
     "check:port": "node tools/check-plane.mjs",
     "record:quota": "node tools/record-quota-table.mjs",
-    "test": "node tools/run-probes.mjs"
+    "test": "node tools/run-probes.mjs",
+    "workflows:inventory": "node tools/render-workflow-inventory.mjs"
   }
 }

@@ -69,7 +69,7 @@ The kit's economic contract — what protects the user's prepaid plans:
 
 **Thinking levels.** Profiles may force thinking `deep` or `off` per provider dialect (`routing.thinkingStyles`); `auto` strips reasoning params as always. Built-in profiles: `deep` (hard tier, thinking on), `bulk` (quick tier, thinking off).
 
-**Workflow library & registry.** 37 saved `.dwf.ts` workflows; 19 carry a task argument and are router-assignable, 18 take structured args and stay hand-launched (the three tabular loops and the two semantic loops among them). The registry is generated from each file's `zcode-workflow` metadata block — library and registry cannot drift. Adding a workflow = drop the file in `workflows/` + `kit apply`.
+**Workflow library & registry.** 37 saved `.dwf.ts` workflows; 20 carry a task argument and are router-assignable, 17 take structured args and stay hand-launched (the three tabular loops and the two semantic loops among them). The registry is generated from each file's `zcode-workflow` metadata block — library and registry cannot drift. Adding a workflow = drop the file in `workflows/` + `kit apply`.
 
 **Usage ledger + dashboard.** Every upstream call is metered (calls, errors, tokens, latency, per model per day, mixture proposers included) and visible at `/dashboard`, which also edits the roster.
 
