@@ -33,6 +33,7 @@ import { createUsage, sseUsageTap } from "./usage.mjs";
 import { offpeakWeight, computeQuotaState, pickCandidate } from "./quota.mjs";
 import { suggestDelegation } from "./suggest.mjs";
 import { judgeViaFastino } from "./fastino.mjs";
+import { makeSemrouteShadow } from "./semroute-shadow.mjs";
 import { classifyFailure, rememberKeyRejection, keyRejectionView } from "./failclass.mjs";
 import { writeFileAtomic } from "./atomic.mjs";
 import { normalizeEvent, isTerminal } from "workflow-plane/events.mjs";
@@ -68,6 +69,10 @@ const LOG_DIR = path.join(__dirname, "logs");
 let config = JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
 let configMtime = 0;
 let R = config.routing;
+// The semantic shadow router (router/semroute-shadow.mjs) — created once the
+// helpers below exist; re-warmed on config reload so a roster edit re-embeds
+// the registry's shape sentences without a restart.
+let shadowRoute = null;
 function refreshConfig() {
   try {
     const mtime = fs.statSync(CONFIG_PATH).mtimeMs;
@@ -78,6 +83,7 @@ function refreshConfig() {
     R = config.routing;
     configMtime = mtime;
     log({ event: "config-reload", port: config.port });
+    shadowRoute?.warm?.();
   } catch {}
 }
 
@@ -461,6 +467,12 @@ async function decide(signals) {
     return { ...R.workloads[hit.workload], workload: hit.workload, execution: "single", workflow: cachedWorkflow, followUp: cachedFollowUp, conf: hit.conf, wfConf: hit.wfConf ?? null, reason: "cache" };
   }
   const judged = await runJudge(signals);
+  // The shadow's one tap, and the only place it touches: read-only,
+  // fire-and-forget, nothing reads its return — the delegation below is
+  // byte-identical whether this logger is warm, cold, or disabled by name.
+  void shadowRoute
+    ?.note(signals.lastUser ?? "", judged.execution === "swarm" || judged.execution === "mixture" ? judged.execution : (judged.workflow ?? "none"))
+    .catch(() => {});
   const workload = judged.workload ?? R.defaultWorkload;
   workloadCache.set(signals.sessionKey, {
     workload,
@@ -2182,9 +2194,23 @@ const warmOnce = () => {
 const warmTimer = setInterval(warmOnce, 150_000);
 warmTimer.unref?.();
 
+// The semantic shadow router: eval-only agreement rows (would the geometry
+// have picked the judge's workflow?), tagged `applied: false` — a logger, not
+// a router; every failure disables it by name and routing is unchanged.
+shadowRoute = makeSemrouteShadow({
+  registry: (R.workflows ?? [])
+    .map((wf) => ({ name: wf.name, text: wf.shape ?? "" }))
+    .filter((wf) => wf.text),
+  embedUrl: process.env.SEM1_EMBED_URL ?? "http://127.0.0.1:8901/v1",
+  model: process.env.SEM1_EMBED_MODEL ?? "embeddinggemma-2-BF16",
+  key: process.env.SEM1_EMBED_KEY,
+  log,
+});
+
 server.listen(config.port, "127.0.0.1", () => {
   log({ event: "start", port: config.port });
   console.log(`zcode-model-router listening on 127.0.0.1:${config.port}`);
   console.log(`dashboard: http://127.0.0.1:${config.port}/dashboard`);
   warmOnce();
+  shadowRoute.warm();
 });
