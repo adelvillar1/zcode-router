@@ -1,0 +1,734 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "One roster, rendered everywhere",
+    "subtitle": "zcode-router-kit — kit apply is the only writer; the dashboard's saves go back through it",
+    "output": "docs/architecture/architecture.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "git@github.com:adelvillar1/zcode-router.git",
+      "link_mode": "local-only",
+      "revision": "d4ac012ed93afc1595173af75d30a7dec679dcbb"
+    },
+    "views": [
+      {
+        "id": "render",
+        "label": "Render chain",
+        "focus": [
+          "roster",
+          "kitapply",
+          "config",
+          "provider-config",
+          "envfile",
+          "workflows-installed",
+          "planert",
+          "launchd"
+        ],
+        "note": "roster.json in, everything under ~/.zcode out — validate, render, install, restart, health-check"
+      },
+      {
+        "id": "request",
+        "label": "Request path",
+        "focus": [
+          "zcode",
+          "router",
+          "upstreams",
+          "ledger",
+          "provider-config"
+        ],
+        "note": "capability rules, one cached judgment, parity-filtered quota-steered chain walk, metering"
+      },
+      {
+        "id": "feedback",
+        "label": "Operator loop",
+        "focus": [
+          "dashboard",
+          "kitapply",
+          "roster"
+        ],
+        "note": "the dashboard edits the roster, then re-runs kit apply — no second writer"
+      },
+      {
+        "id": "plane",
+        "label": "Workflow plane",
+        "focus": [
+          "planepkg",
+          "kitapply",
+          "planert",
+          "router"
+        ],
+        "note": "the engine edition's package by file: symlink, shipped beside the router by kit apply"
+      }
+    ]
+  },
+  "components": [
+    {
+      "id": "zcode",
+      "type": "external",
+      "label": "ZCode · model picker",
+      "sublabel": "auto-router/auto · Bearer localToken",
+      "pos": [
+        871,
+        30
+      ],
+      "size": [
+        230,
+        72
+      ],
+      "sources": [
+        {
+          "path": "router/README.md",
+          "line": 3,
+          "end_line": 5,
+          "label": "registered as the Auto Router provider"
+        }
+      ]
+    },
+    {
+      "id": "roster",
+      "type": "database",
+      "label": "roster.json",
+      "sublabel": "providers · tiers + fallbacks · profiles · quota · registry",
+      "pos": [
+        32,
+        140
+      ],
+      "size": [
+        230,
+        108
+      ],
+      "sources": [
+        {
+          "path": "templates/roster.defaults.json",
+          "line": 2,
+          "end_line": 3,
+          "label": "keys never live here — env refs only"
+        },
+        {
+          "path": "lib/paths.mjs",
+          "line": 52,
+          "end_line": 53,
+          "label": "one roster per machine"
+        },
+        {
+          "path": "templates/roster.defaults.json",
+          "line": 120,
+          "end_line": 127,
+          "label": "tiers: target + ordered fallbacks"
+        }
+      ]
+    },
+    {
+      "id": "kitwf",
+      "type": "database",
+      "label": "workflows/ — delegation library",
+      "sublabel": "35 saved .dwf.ts · zcode-workflow metadata",
+      "pos": [
+        32,
+        278
+      ],
+      "size": [
+        230,
+        84
+      ],
+      "sources": [
+        {
+          "path": "lib/workflowlib.mjs",
+          "line": 3,
+          "end_line": 5,
+          "label": "registry from library metadata"
+        },
+        {
+          "path": "lib/workflowlib.mjs",
+          "line": 19,
+          "end_line": 25,
+          "label": "zcode-workflow header parser"
+        }
+      ]
+    },
+    {
+      "id": "kitapply",
+      "type": "backend",
+      "label": "kit apply",
+      "sublabel": "validate·render·install·restart·health-check",
+      "tag": "the only writer",
+      "pos": [
+        314,
+        200
+      ],
+      "size": [
+        200,
+        190
+      ],
+      "sources": [
+        {
+          "path": "lib/cli.mjs",
+          "line": 352,
+          "end_line": 369,
+          "label": "validate before anything is written"
+        },
+        {
+          "path": "lib/cli.mjs",
+          "line": 371,
+          "end_line": 393,
+          "label": "render config.json + create .env"
+        },
+        {
+          "path": "lib/cli.mjs",
+          "line": 414,
+          "end_line": 456,
+          "label": "sync · service · health-check"
+        }
+      ]
+    },
+    {
+      "id": "planepkg",
+      "type": "backend",
+      "label": "workflow-plane",
+      "sublabel": "the engine's package — file: symlink · 16 modules · 0 deps",
+      "pos": [
+        32,
+        420
+      ],
+      "size": [
+        230,
+        92
+      ],
+      "sources": [
+        {
+          "path": "package.json",
+          "line": 14,
+          "end_line": 16,
+          "label": "only dependency: file: workflow-plane"
+        },
+        {
+          "path": "tools/check-plane.mjs",
+          "line": 37,
+          "end_line": 47,
+          "label": "resolves the engine checkout — no drift"
+        }
+      ]
+    },
+    {
+      "id": "provider-config",
+      "type": "database",
+      "label": "~/.zcode/v2/provider_config.json",
+      "sublabel": "what the picker shows · kit rewrites only its own keys",
+      "pos": [
+        565,
+        50
+      ],
+      "size": [
+        230,
+        84
+      ],
+      "sources": [
+        {
+          "path": "lib/provider-merge.mjs",
+          "line": 8,
+          "end_line": 12,
+          "label": "rewrites only the two keys it owns"
+        },
+        {
+          "path": "lib/provider-merge.mjs",
+          "line": 69,
+          "end_line": 75,
+          "label": "schemaVersion guard — refuse unknown"
+        },
+        {
+          "path": "lib/provider-merge.mjs",
+          "line": 145,
+          "end_line": 152,
+          "label": "verify re-parse before write"
+        }
+      ]
+    },
+    {
+      "id": "config",
+      "type": "database",
+      "label": "~/.zcode/router/config.json",
+      "sublabel": "tier chains · caps · pricing · judge · registry",
+      "pos": [
+        565,
+        166
+      ],
+      "size": [
+        230,
+        84
+      ],
+      "sources": [
+        {
+          "path": "lib/render.mjs",
+          "line": 1,
+          "end_line": 5,
+          "label": "fully generated — hand-edits overwritten"
+        },
+        {
+          "path": "lib/render.mjs",
+          "line": 53,
+          "end_line": 82,
+          "label": "tier chains · profiles · registry"
+        },
+        {
+          "path": "lib/cli.mjs",
+          "line": 96,
+          "end_line": 101,
+          "label": "atomic write; re-read on mtime"
+        }
+      ]
+    },
+    {
+      "id": "envfile",
+      "type": "security",
+      "label": "~/.zcode/router/.env",
+      "sublabel": "keys live only here — chmod 600, never committed",
+      "pos": [
+        565,
+        282
+      ],
+      "size": [
+        230,
+        68
+      ],
+      "sources": [
+        {
+          "path": "lib/envstore.mjs",
+          "line": 1,
+          "end_line": 3,
+          "label": "keys live ONLY here (chmod 600)"
+        },
+        {
+          "path": "lib/envstore.mjs",
+          "line": 33,
+          "end_line": 36,
+          "label": "atomic write, mode 0o600"
+        },
+        {
+          "path": "lib/cli.mjs",
+          "line": 387,
+          "end_line": 390,
+          "label": "created by apply when missing"
+        }
+      ]
+    },
+    {
+      "id": "workflows-installed",
+      "type": "database",
+      "label": "~/.zcode/workflows/*.dwf.ts",
+      "sublabel": "the delegation library ZCode runs — 35 installed",
+      "pos": [
+        565,
+        382
+      ],
+      "size": [
+        230,
+        68
+      ],
+      "sources": [
+        {
+          "path": "lib/cli.mjs",
+          "line": 414,
+          "end_line": 426,
+          "label": "sync library into ~/.zcode/workflows"
+        },
+        {
+          "path": "lib/paths.mjs",
+          "line": 45,
+          "end_line": 46,
+          "label": "where saved workflows are discovered"
+        }
+      ]
+    },
+    {
+      "id": "planert",
+      "type": "database",
+      "label": "~/.zcode/lib/workflow/",
+      "sublabel": "plane shipped beside the router · node_modules symlink",
+      "pos": [
+        565,
+        482
+      ],
+      "size": [
+        230,
+        88
+      ],
+      "sources": [
+        {
+          "path": "lib/cli.mjs",
+          "line": 128,
+          "end_line": 148,
+          "label": "ships the plane from manifest exports"
+        },
+        {
+          "path": "lib/cli.mjs",
+          "line": 149,
+          "end_line": 165,
+          "label": "node_modules/workflow-plane symlink"
+        },
+        {
+          "path": "tools/check-plane.mjs",
+          "line": 73,
+          "end_line": 99,
+          "label": "installed runtime must match engine"
+        }
+      ]
+    },
+    {
+      "id": "launchd",
+      "type": "backend",
+      "label": "launchd / systemd unit",
+      "sublabel": "com.zcode.model-router · RunAtLoad + KeepAlive",
+      "pos": [
+        565,
+        602
+      ],
+      "size": [
+        230,
+        68
+      ],
+      "sources": [
+        {
+          "path": "lib/service.mjs",
+          "line": 33,
+          "end_line": 64,
+          "label": "plist: RunAtLoad + KeepAlive"
+        },
+        {
+          "path": "lib/paths.mjs",
+          "line": 58,
+          "label": "label com.zcode.model-router"
+        }
+      ]
+    },
+    {
+      "id": "router",
+      "type": "backend",
+      "label": "router · 127.0.0.1:8300",
+      "sublabel": "one cached judgment/task · typesafe / fastino / cascade",
+      "tag": "capability rules first",
+      "pos": [
+        871,
+        250
+      ],
+      "size": [
+        230,
+        130
+      ],
+      "sources": [
+        {
+          "path": "router/server.js",
+          "line": 1547,
+          "label": "POST /v1/chat/completions"
+        },
+        {
+          "path": "router/server.js",
+          "line": 428,
+          "end_line": 437,
+          "label": "capability rules always win"
+        },
+        {
+          "path": "router/server.js",
+          "line": 449,
+          "end_line": 462,
+          "label": "one cached judgment per task"
+        }
+      ]
+    },
+    {
+      "id": "ledger",
+      "type": "database",
+      "label": "usage ledger — logs/usage.json",
+      "sublabel": "every attempt: trigger + declared-price cost · SSE tap",
+      "pos": [
+        871,
+        500
+      ],
+      "size": [
+        230,
+        84
+      ],
+      "sources": [
+        {
+          "path": "router/usage.mjs",
+          "line": 95,
+          "end_line": 105,
+          "label": "trigger: who spent; cost never estimated"
+        },
+        {
+          "path": "router/usage.mjs",
+          "line": 116,
+          "end_line": 120,
+          "label": "declared price → costUsd"
+        },
+        {
+          "path": "router/server.js",
+          "line": 84,
+          "end_line": 87,
+          "label": "ledger file + off-peak weights"
+        }
+      ]
+    },
+    {
+      "id": "dashboard",
+      "type": "frontend",
+      "label": "dashboard · /dashboard",
+      "sublabel": "usage · delegation editor · suggestions",
+      "pos": [
+        871,
+        616
+      ],
+      "size": [
+        230,
+        76
+      ],
+      "sources": [
+        {
+          "path": "router/dashboard.html",
+          "line": 805,
+          "end_line": 824,
+          "label": "renderProviders: roster + caps view"
+        },
+        {
+          "path": "router/server.js",
+          "line": 2036,
+          "end_line": 2086,
+          "label": "PUT /api/roster — whole roster back"
+        },
+        {
+          "path": "router/server.js",
+          "line": 1064,
+          "end_line": 1084,
+          "label": "spawns the kit CLI — no second copy"
+        }
+      ]
+    },
+    {
+      "id": "upstreams",
+      "type": "cloud",
+      "label": "prepaid upstreams",
+      "sublabel": "token-plan · stepfun · mimo · zai-coding-plan",
+      "tag": "deepseek: payg, picker only",
+      "pos": [
+        1165,
+        280
+      ],
+      "size": [
+        176,
+        110
+      ],
+      "sources": [
+        {
+          "path": "templates/roster.defaults.json",
+          "line": 17,
+          "end_line": 109,
+          "label": "providers: prepaid plans + one payg"
+        },
+        {
+          "path": "templates/roster.defaults.json",
+          "line": 100,
+          "end_line": 107,
+          "label": "zai-coding-plan: routerOnly"
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "You edit — the kit repo (git)",
+      "wraps": [
+        "roster",
+        "kitwf",
+        "kitapply"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "Engine edition — ../agnostic-router-kit",
+      "wraps": [
+        "planepkg"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "Rendered + installed by kit apply — ~/.zcode",
+      "wraps": [
+        "provider-config",
+        "config",
+        "envfile",
+        "workflows-installed",
+        "planert",
+        "launchd"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "The running router — 127.0.0.1:8300, loopback only",
+      "wraps": [
+        "router",
+        "ledger",
+        "dashboard"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "roster-read",
+      "from": "roster",
+      "to": "kitapply",
+      "label": "validate"
+    },
+    {
+      "id": "kitwf-registry",
+      "from": "kitwf",
+      "to": "kitapply",
+      "label": "registry"
+    },
+    {
+      "id": "apply-provider",
+      "from": "kitapply",
+      "to": "provider-config",
+      "label": "merge"
+    },
+    {
+      "id": "apply-config",
+      "from": "kitapply",
+      "to": "config",
+      "label": "render"
+    },
+    {
+      "id": "apply-env",
+      "from": "kitapply",
+      "to": "envfile",
+      "label": "chmod 600",
+      "variant": "security"
+    },
+    {
+      "id": "apply-workflows",
+      "from": "kitapply",
+      "to": "workflows-installed",
+      "label": "sync"
+    },
+    {
+      "id": "apply-plane",
+      "from": "kitapply",
+      "to": "planert",
+      "label": "ship plane"
+    },
+    {
+      "id": "apply-service",
+      "from": "kitapply",
+      "to": "launchd",
+      "label": "service"
+    },
+    {
+      "id": "kit-resolves-plane",
+      "from": "kitapply",
+      "to": "planepkg",
+      "label": "file: symlink",
+      "variant": "dashed"
+    },
+    {
+      "id": "picker-providers",
+      "from": "provider-config",
+      "to": "zcode",
+      "label": "feeds picker"
+    },
+    {
+      "id": "config-reread",
+      "from": "config",
+      "to": "router",
+      "label": "re-read"
+    },
+    {
+      "id": "router-imports-plane",
+      "from": "planert",
+      "to": "router",
+      "label": "imports"
+    },
+    {
+      "id": "keepalive",
+      "from": "launchd",
+      "to": "router",
+      "label": "keepalive"
+    },
+    {
+      "id": "request",
+      "from": "zcode",
+      "to": "router",
+      "label": "POST /chat/completions",
+      "variant": "emphasis"
+    },
+    {
+      "id": "chain-walk",
+      "from": "router",
+      "to": "upstreams",
+      "label": "walk"
+    },
+    {
+      "id": "meter",
+      "from": "router",
+      "to": "ledger",
+      "label": "meters every call"
+    },
+    {
+      "id": "serves-dashboard",
+      "from": "router",
+      "to": "dashboard",
+      "label": "serves /dashboard"
+    },
+    {
+      "id": "save-and-apply",
+      "from": "dashboard",
+      "to": "kitapply",
+      "label": "Save & apply — PUT /api/roster → kit CLI re-runs",
+      "variant": "dashed",
+      "labelAt": [
+        720,
+        780
+      ],
+      "fromSide": "bottom",
+      "toSide": "bottom"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "The render law",
+      "items": [
+        "config.json is fully generated from the roster — hand-edits are overwritten",
+        "kit apply is the only writer; dashboard saves go back through the kit CLI",
+        "idempotent: unchanged files stay byte-identical; config backed up before write",
+        "every path is machine-local — the router listens on 127.0.0.1 only"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Keys & provider config",
+      "items": [
+        "roster carries env-var names only; values live in ~/.zcode/router/.env (chmod 600)",
+        "provider_config.json is schemaVersion-guarded: the kit rewrites only its own keys, backup + re-parse verify first",
+        "a key is trusted until a real use of it is refused (401, or 403 speaking key vocabulary)"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Failure laws",
+      "items": [
+        "usage-limit vocabulary is classified before 429 — a plan's window is quota, even when phrased as rate limiting",
+        "quota, billing and rate-limit bodies never blame the key; benches: quota 30 min, rate 5 min",
+        "parity: fallbacks declaring images/tools false are excluded from the chain before quota steering"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Workflow plane",
+      "items": [
+        "the plane is the engine edition's package by file: symlink — 16 modules, 0 deps",
+        "kit apply ships it beside the router from the package's own exports + a node_modules link",
+        "check:port asserts the kit and the installed runtime cannot drift from the engine"
+      ]
+    }
+  ]
+}

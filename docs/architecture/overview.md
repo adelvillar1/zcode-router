@@ -13,7 +13,7 @@ roster.json ──kit apply──┬── ~/.zcode/router/config.json       tie
                          └── launchd / systemd service         keeps the router running
 ```
 
-Rendered diagrams: `docs/img/architecture.svg`, `docs/img/request-lifecycle.svg`, `docs/img/quota.svg`, and the
+Rendered diagrams: `docs/architecture/architecture.png`, `docs/architecture/request-lifecycle.png`, `docs/architecture/quota.png`, and the
 interactive [package boundary](zcode-router-plane.html) — the workflow plane in the engine edition, the `file:`
 dependency this kit resolves, the roster / keys / workflow library you edit, and what `kit apply` renders and installs.
 

@@ -1,0 +1,685 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Request lifecycle — one call through the router",
+    "subtitle": "capability first · one judgment per task · quota-aware chain walk · failures classified before benching · every attempt metered",
+    "quality_profile": "showcase",
+    "output": "docs/architecture/request-lifecycle.html",
+    "repository": {
+      "url": "git@github.com:adelvillar1/zcode-router.git",
+      "link_mode": "local-only",
+      "revision": "d4ac012ed93afc1595173af75d30a7dec679dcbb"
+    }
+  },
+  "lanes": [
+    {
+      "id": "client",
+      "label": "Caller"
+    },
+    {
+      "id": "surface",
+      "label": "API surface"
+    },
+    {
+      "id": "decide",
+      "label": "Decide"
+    },
+    {
+      "id": "chain",
+      "label": "Execute"
+    },
+    {
+      "id": "upstream",
+      "label": "Upstream"
+    },
+    {
+      "id": "answer",
+      "label": "Answer"
+    },
+    {
+      "id": "branch",
+      "label": "Failure classification",
+      "variant": "exception"
+    },
+    {
+      "id": "meter",
+      "label": "Metering"
+    }
+  ],
+  "phases": [
+    {
+      "id": "gatePhase",
+      "label": "1 · gate & parse",
+      "fromCol": 0,
+      "toCol": 1
+    },
+    {
+      "id": "decidePhase",
+      "label": "2 · decide & execute",
+      "fromCol": 2,
+      "toCol": 4,
+      "variant": "emphasis"
+    },
+    {
+      "id": "execPhase",
+      "label": "3 · answer & meter",
+      "fromCol": 5,
+      "toCol": 5
+    }
+  ],
+  "mainPath": [
+    "zcode",
+    "gate",
+    "analyze",
+    "cap",
+    "cache",
+    "judge",
+    "parity",
+    "steer",
+    "walk",
+    "up",
+    "answer",
+    "ledger"
+  ],
+  "semanticChecks": {
+    "allowedRoots": [
+      "zcode"
+    ],
+    "allowedTerminals": [
+      "ledger"
+    ]
+  },
+  "nodes": [
+    {
+      "id": "zcode",
+      "lane": "client",
+      "col": 0,
+      "type": "external",
+      "label": "ZCode",
+      "sublabel": "coding agent",
+      "width": 104,
+      "sources": [
+        {
+          "path": "router/server.js",
+          "line": 1547,
+          "end_line": 1561,
+          "label": "POST /v1/chat/completions"
+        }
+      ]
+    },
+    {
+      "id": "gate",
+      "lane": "surface",
+      "col": 1,
+      "type": "security",
+      "label": "One bearer gate",
+      "sublabel": "operator · app:<name>",
+      "tag": "unknown → 401",
+      "width": 126,
+      "sources": [
+        {
+          "path": "router/server.js",
+          "line": 1506,
+          "end_line": 1522,
+          "label": "one gate, two token classes"
+        }
+      ]
+    },
+    {
+      "id": "routeApi",
+      "lane": "surface",
+      "col": 5,
+      "type": "messagebus",
+      "label": "/route",
+      "sublabel": "delegation verdict",
+      "tag": "workflow → followUp",
+      "width": 110,
+      "sources": [
+        {
+          "path": "router/server.js",
+          "line": 1154,
+          "end_line": 1214,
+          "label": "decide + steer → assignments"
+        }
+      ]
+    },
+    {
+      "id": "analyze",
+      "lane": "decide",
+      "col": 1,
+      "type": "backend",
+      "label": "analyze()",
+      "sublabel": "counts + session hash",
+      "width": 128,
+      "sources": [
+        {
+          "path": "router/server.js",
+          "line": 359,
+          "end_line": 404,
+          "label": "signal counting + session key"
+        }
+      ]
+    },
+    {
+      "id": "cap",
+      "lane": "decide",
+      "col": 2,
+      "type": "backend",
+      "label": "Capability rules",
+      "sublabel": "images→omni · wide→wide",
+      "tag": "beats pinned profile",
+      "width": 128,
+      "sources": [
+        {
+          "path": "router/server.js",
+          "line": 432,
+          "end_line": 437,
+          "label": "capability rules always win"
+        }
+      ]
+    },
+    {
+      "id": "cache",
+      "lane": "decide",
+      "col": 3,
+      "type": "database",
+      "label": "Session cache",
+      "sublabel": "head + lastUser hash",
+      "tag": "TTL 6h",
+      "width": 128,
+      "sources": [
+        {
+          "path": "router/server.js",
+          "line": 385,
+          "end_line": 391,
+          "label": "sessionKey hash"
+        },
+        {
+          "path": "router/server.js",
+          "line": 453,
+          "end_line": 462,
+          "label": "hit reuses the verdict"
+        }
+      ]
+    },
+    {
+      "id": "judge",
+      "lane": "decide",
+      "col": 4,
+      "type": "backend",
+      "label": "The judge",
+      "sublabel": "one call · 4 gated answers",
+      "tag": "typesafe·fastino·cascade",
+      "width": 132,
+      "sources": [
+        {
+          "path": "router/server.js",
+          "line": 244,
+          "end_line": 281,
+          "label": "four gated questions"
+        },
+        {
+          "path": "router/server.js",
+          "line": 308,
+          "end_line": 321,
+          "label": "per-question confidence gates"
+        },
+        {
+          "path": "router/server.js",
+          "line": 336,
+          "end_line": 353,
+          "label": "backend: typesafe · fastino · cascade"
+        }
+      ]
+    },
+    {
+      "id": "failopen",
+      "lane": "decide",
+      "col": 5,
+      "type": "backend",
+      "label": "Fail-open",
+      "sublabel": "no key · error · low conf",
+      "width": 118,
+      "sources": [
+        {
+          "path": "router/server.js",
+          "line": 227,
+          "end_line": 229,
+          "label": "no key → no workload"
+        },
+        {
+          "path": "router/server.js",
+          "line": 463,
+          "end_line": 464,
+          "label": "falls back to defaultWorkload"
+        }
+      ]
+    },
+    {
+      "id": "parity",
+      "lane": "decide",
+      "col": 4,
+      "type": "security",
+      "label": "Parity filter",
+      "sublabel": "doomed fallbacks out",
+      "tag": "undeclared = neutral",
+      "width": 128,
+      "yOffset": 130,
+      "sources": [
+        {
+          "path": "router/server.js",
+          "line": 968,
+          "end_line": 999,
+          "label": "parityFilter"
+        },
+        {
+          "path": "lib/render.mjs",
+          "line": 14,
+          "end_line": 27,
+          "label": "caps from manualModelRules"
+        }
+      ]
+    },
+    {
+      "id": "mixture",
+      "lane": "chain",
+      "col": 5,
+      "type": "backend",
+      "label": "Mixture / swarm",
+      "sublabel": "proposers in parallel",
+      "tag": "tool turns → single",
+      "width": 128,
+      "sources": [
+        {
+          "path": "router/server.js",
+          "line": 415,
+          "end_line": 426,
+          "label": "tool turns skip to single"
+        },
+        {
+          "path": "router/server.js",
+          "line": 613,
+          "end_line": 648,
+          "label": "proposers in parallel"
+        },
+        {
+          "path": "router/server.js",
+          "line": 647,
+          "end_line": 674,
+          "label": "merge only if it wins"
+        }
+      ]
+    },
+    {
+      "id": "steer",
+      "lane": "decide",
+      "col": 4,
+      "type": "backend",
+      "label": "Quota steering",
+      "sublabel": "skip headroom < 40%",
+      "tag": "benched = 0 headroom",
+      "width": 128,
+      "yOffset": 260,
+      "sources": [
+        {
+          "path": "router/server.js",
+          "line": 133,
+          "end_line": 156,
+          "label": "steerSingle"
+        },
+        {
+          "path": "router/quota.mjs",
+          "line": 170,
+          "end_line": 181,
+          "label": "pickCandidate threshold"
+        }
+      ]
+    },
+    {
+      "id": "walk",
+      "lane": "chain",
+      "col": 4,
+      "type": "backend",
+      "label": "Tier-chain walk",
+      "sublabel": "roster order · benched skip",
+      "width": 128,
+      "sources": [
+        {
+          "path": "router/server.js",
+          "line": 1013,
+          "end_line": 1043,
+          "label": "candidate chain walk"
+        }
+      ]
+    },
+    {
+      "id": "up",
+      "lane": "upstream",
+      "col": 4,
+      "type": "cloud",
+      "label": "Upstream",
+      "sublabel": "thinking policy",
+      "width": 118,
+      "sources": [
+        {
+          "path": "router/server.js",
+          "line": 799,
+          "end_line": 812,
+          "label": "upstream attempt"
+        }
+      ]
+    },
+    {
+      "id": "answer",
+      "lane": "answer",
+      "col": 5,
+      "type": "backend",
+      "label": "Answer",
+      "sublabel": "SSE tap · x-router-*",
+      "tag": "400/404 as-is",
+      "width": 128,
+      "sources": [
+        {
+          "path": "router/server.js",
+          "line": 856,
+          "end_line": 862,
+          "label": "x-router response headers"
+        },
+        {
+          "path": "router/server.js",
+          "line": 864,
+          "end_line": 909,
+          "label": "stream with settle metering"
+        },
+        {
+          "path": "router/usage.mjs",
+          "line": 383,
+          "end_line": 394,
+          "label": "pass-through SSE usage tap"
+        }
+      ]
+    },
+    {
+      "id": "classify",
+      "lane": "branch",
+      "col": 4,
+      "type": "security",
+      "label": "classifyFailure()",
+      "sublabel": "quota before 429 · not key",
+      "tag": "model gaps: no bench",
+      "width": 132,
+      "sources": [
+        {
+          "path": "router/failclass.mjs",
+          "line": 30,
+          "end_line": 46,
+          "label": "classifyFailure"
+        },
+        {
+          "path": "router/server.js",
+          "line": 831,
+          "end_line": 841,
+          "label": "classify before benching"
+        },
+        {
+          "path": "router/server.js",
+          "line": 1130,
+          "end_line": 1143,
+          "label": "bench order per class"
+        }
+      ]
+    },
+    {
+      "id": "ledger",
+      "lane": "meter",
+      "col": 5,
+      "type": "database",
+      "label": "Usage ledger",
+      "sublabel": "trigger · declared price",
+      "tag": "won·diverted·lost·parity",
+      "width": 132,
+      "sources": [
+        {
+          "path": "router/usage.mjs",
+          "line": 95,
+          "end_line": 120,
+          "label": "record: trigger + declared price"
+        },
+        {
+          "path": "router/usage.mjs",
+          "line": 142,
+          "end_line": 181,
+          "label": "hourly + weighted buckets"
+        },
+        {
+          "path": "lib/render.mjs",
+          "line": 30,
+          "end_line": 44,
+          "label": "prices declared in roster"
+        }
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "id": "req",
+      "from": "zcode",
+      "to": "gate",
+      "label": "POST /v1/chat/completions",
+      "variant": "emphasis",
+      "role": "main"
+    },
+    {
+      "id": "routeReq",
+      "from": "zcode",
+      "to": "routeApi",
+      "label": "POST /route",
+      "variant": "dashed",
+      "role": "branch"
+    },
+    {
+      "id": "sameBrain",
+      "from": "routeApi",
+      "to": "judge",
+      "label": "same brain",
+      "variant": "dashed",
+      "role": "branch"
+    },
+    {
+      "id": "authed",
+      "from": "gate",
+      "to": "analyze",
+      "label": "trigger",
+      "variant": "emphasis",
+      "role": "main"
+    },
+    {
+      "id": "signals",
+      "from": "analyze",
+      "to": "cap",
+      "label": "signals",
+      "variant": "emphasis",
+      "role": "main"
+    },
+    {
+      "id": "noCap",
+      "from": "cap",
+      "to": "cache",
+      "label": "no match",
+      "variant": "emphasis",
+      "role": "main"
+    },
+    {
+      "id": "miss",
+      "from": "cache",
+      "to": "judge",
+      "label": "miss",
+      "variant": "emphasis",
+      "role": "main"
+    },
+    {
+      "id": "capBypass",
+      "from": "cap",
+      "to": "parity",
+      "label": "always win",
+      "variant": "dashed",
+      "role": "branch",
+      "bias": 0.15
+    },
+    {
+      "id": "hitBypass",
+      "from": "cache",
+      "to": "parity",
+      "label": "hit: reuse",
+      "variant": "dashed",
+      "role": "branch",
+      "bias": 0.55
+    },
+    {
+      "id": "failopenGo",
+      "from": "failopen",
+      "to": "parity",
+      "label": "default · single",
+      "variant": "dashed",
+      "role": "branch",
+      "bias": 0.35
+    },
+    {
+      "id": "verdict",
+      "from": "judge",
+      "to": "parity",
+      "label": "verdict",
+      "variant": "emphasis",
+      "role": "main",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "judgeFail",
+      "from": "judge",
+      "to": "failopen",
+      "label": "cannot answer",
+      "variant": "security",
+      "role": "error"
+    },
+    {
+      "id": "judgeMix",
+      "from": "judge",
+      "to": "mixture",
+      "label": "mixture / swarm",
+      "variant": "dashed",
+      "role": "branch",
+      "bias": 0.8
+    },
+    {
+      "id": "paritySteer",
+      "from": "parity",
+      "to": "steer",
+      "label": "singles",
+      "variant": "emphasis",
+      "role": "main"
+    },
+    {
+      "id": "steerWalk",
+      "from": "steer",
+      "to": "walk",
+      "label": "steered first",
+      "variant": "emphasis",
+      "role": "main"
+    },
+    {
+      "id": "attempt",
+      "from": "walk",
+      "to": "up",
+      "label": "attempt",
+      "variant": "emphasis",
+      "role": "main"
+    },
+    {
+      "id": "failed",
+      "from": "up",
+      "to": "classify",
+      "label": "failover-able",
+      "variant": "security",
+      "role": "error",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "benchWalk",
+      "from": "classify",
+      "to": "walk",
+      "label": "bench per class",
+      "variant": "security",
+      "role": "return",
+      "fromSide": "left",
+      "toSide": "left"
+    },
+    {
+      "id": "served",
+      "from": "up",
+      "to": "answer",
+      "label": "2xx / passthrough",
+      "variant": "emphasis",
+      "role": "main",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "mixAnswer",
+      "from": "mixture",
+      "to": "answer",
+      "label": "composed answer",
+      "variant": "dashed",
+      "role": "branch",
+      "width": 1.2,
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "settle",
+      "from": "answer",
+      "to": "ledger",
+      "label": "settle",
+      "variant": "emphasis",
+      "role": "main"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "One gate, two token classes",
+      "items": [
+        "operator localToken — no ceiling; app tokens from the roster's router.apps",
+        "unknown bearer → 401; every attempt carries its trigger: operator | app:<name>"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Classify before bench",
+      "items": [
+        "usage-limit vocabulary is matched before the 429 pattern — a window hours away is quota, not rate",
+        "quota, billing and rate bodies are never key faults; model gaps walk without benching",
+        "bench order: roster override → Retry-After (honest cases) → classified bench → per-status floor"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Capability parity",
+      "items": [
+        "a fallback declaring it lacks images or tools (manualModelRules) is excluded before steering",
+        "undeclared caps gate nothing — the neutrality law"
+      ]
+    },
+    {
+      "dot": "violet",
+      "title": "Every attempt metered",
+      "items": [
+        "won, diverted, lost and parity-excluded attempts all land in the ledger",
+        "cost comes from declared roster prices at record time — never estimated; no price, no cost",
+        "the ledger feeds the dashboard, quota headroom and steering"
+      ]
+    }
+  ]
+}

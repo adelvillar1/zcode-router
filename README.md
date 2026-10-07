@@ -40,7 +40,7 @@ the resolution, the installed modules against the engine's, and that a module
 in the installed router can resolve `workflow-plane/*.mjs`.
 
 <p align="center">
-  <img src="docs/img/architecture.svg" alt="Architecture: the roster, .env keys, and the workflow library are rendered by kit apply into the router config, ZCode's provider config, the installed workflows, and a keepalive service; the router then routes ZCode's calls to the prepaid upstreams, meters usage into the ledger, and the dashboard edits the roster back through kit apply" width="1080">
+  <img src="docs/architecture/architecture.png" alt="Architecture: the roster, .env keys, and the delegation library are rendered by kit apply — the only writer — into the router config (tier chains, caps, pricing, judge, registry), ZCode's provider config, the installed workflows, and a keepalive service; the workflow-plane package arrives from the engine edition by symlink; the router routes ZCode's calls to the prepaid upstreams with capability rules first, meters every call into the ledger with trigger and declared-price cost, and the dashboard edits the roster back through kit apply" width="1080">
   <br>
   <a href="docs/architecture/zcode-router-plane.html">The package boundary, interactive</a> —
   the engine edition's <code>workflow-plane</code>, the <code>file:</code>
@@ -315,7 +315,7 @@ suggester and the steering both leave undeclared providers alone. See
 [Quota & steering](router/README.md#quota--steering) in the router README:
 
 <p align="center">
-  <img src="docs/img/quota.svg" alt="Quota flow: the ledger meters off-peak-weighted spend into hourly buckets, console readings calibrate the allowance (delta spend over delta percent), and headroom drives steering, failover, and the dashboard panel" width="1080">
+  <img src="docs/architecture/quota.png" alt="Quota flow: the ledger meters off-peak-weighted spend into hourly buckets, console readings calibrate the allowance (delta spend over delta percent), headroom drives steering and the suggester, undeclared providers stay neutral, and the quota-forecast loop scores the exported spend table through sdm1 — a quantile band per plan, escalating before a plan dies mid-task" width="1080">
 </p>
 
 ```json
@@ -338,7 +338,7 @@ metadata when omitted):
 ## How the router decides
 
 <p align="center">
-  <img src="docs/img/request-lifecycle.svg" alt="Request lifecycle: capability rules first, then the session cache, the TypeSafe judge (workload, execution, workflow, followUp), then single / mixture execution, the quota-aware tier chain walk — parity excludes fallbacks that lack a declared capability, failures are classified (quota is not a rate limit, a quota body is never a key fault) and benched per class — and metering into the usage ledger with trigger and declared-price cost" width="1080">
+  <img src="docs/architecture/request-lifecycle.png" alt="Request lifecycle: the bearer gate, capability rules first, the session cache, the TypeSafe judge with its four gated answers and fail-open, the parity filter (declared-incapable fallbacks excluded before steering), quota steering, the classified tier-chain walk (quota is not a rate limit, a quota body is never a key fault, model gaps walk without benching), and metering into the usage ledger with trigger and declared-price cost" width="1080">
 </p>
 
 For an `auto` request the router makes **one judgment per task** — cached, so
