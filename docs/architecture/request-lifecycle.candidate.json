@@ -9,7 +9,7 @@
     "repository": {
       "url": "git@github.com:adelvillar1/zcode-router.git",
       "link_mode": "local-only",
-      "revision": "d4ac012ed93afc1595173af75d30a7dec679dcbb"
+      "revision": "52c1729810e6f1d06a8a2ea08c7ded12d4f6f82f"
     }
   },
   "lanes": [
@@ -102,8 +102,8 @@
       "sources": [
         {
           "path": "router/server.js",
-          "line": 1547,
-          "end_line": 1561,
+          "line": 1559,
+          "end_line": 1573,
           "label": "POST /v1/chat/completions"
         }
       ]
@@ -120,8 +120,8 @@
       "sources": [
         {
           "path": "router/server.js",
-          "line": 1506,
-          "end_line": 1522,
+          "line": 1518,
+          "end_line": 1534,
           "label": "one gate, two token classes"
         }
       ]
@@ -138,8 +138,8 @@
       "sources": [
         {
           "path": "router/server.js",
-          "line": 1154,
-          "end_line": 1214,
+          "line": 1166,
+          "end_line": 1226,
           "label": "decide + steer → assignments"
         }
       ]
@@ -155,8 +155,8 @@
       "sources": [
         {
           "path": "router/server.js",
-          "line": 359,
-          "end_line": 404,
+          "line": 365,
+          "end_line": 410,
           "label": "signal counting + session key"
         }
       ]
@@ -173,8 +173,8 @@
       "sources": [
         {
           "path": "router/server.js",
-          "line": 432,
-          "end_line": 437,
+          "line": 438,
+          "end_line": 443,
           "label": "capability rules always win"
         }
       ]
@@ -191,14 +191,14 @@
       "sources": [
         {
           "path": "router/server.js",
-          "line": 385,
-          "end_line": 391,
+          "line": 391,
+          "end_line": 397,
           "label": "sessionKey hash"
         },
         {
           "path": "router/server.js",
-          "line": 453,
-          "end_line": 462,
+          "line": 459,
+          "end_line": 468,
           "label": "hit reuses the verdict"
         }
       ]
@@ -215,20 +215,20 @@
       "sources": [
         {
           "path": "router/server.js",
-          "line": 244,
-          "end_line": 281,
+          "line": 250,
+          "end_line": 287,
           "label": "four gated questions"
         },
         {
           "path": "router/server.js",
-          "line": 308,
-          "end_line": 321,
+          "line": 314,
+          "end_line": 327,
           "label": "per-question confidence gates"
         },
         {
           "path": "router/server.js",
-          "line": 336,
-          "end_line": 353,
+          "line": 342,
+          "end_line": 359,
           "label": "backend: typesafe · fastino · cascade"
         }
       ]
@@ -244,14 +244,14 @@
       "sources": [
         {
           "path": "router/server.js",
-          "line": 227,
-          "end_line": 229,
+          "line": 233,
+          "end_line": 235,
           "label": "no key → no workload"
         },
         {
           "path": "router/server.js",
-          "line": 463,
-          "end_line": 464,
+          "line": 476,
+          "end_line": 476,
           "label": "falls back to defaultWorkload"
         }
       ]
@@ -269,8 +269,8 @@
       "sources": [
         {
           "path": "router/server.js",
-          "line": 968,
-          "end_line": 999,
+          "line": 980,
+          "end_line": 1011,
           "label": "parityFilter"
         },
         {
@@ -293,20 +293,20 @@
       "sources": [
         {
           "path": "router/server.js",
-          "line": 415,
-          "end_line": 426,
+          "line": 421,
+          "end_line": 432,
           "label": "tool turns skip to single"
         },
         {
           "path": "router/server.js",
-          "line": 613,
-          "end_line": 648,
+          "line": 625,
+          "end_line": 660,
           "label": "proposers in parallel"
         },
         {
           "path": "router/server.js",
-          "line": 647,
-          "end_line": 674,
+          "line": 659,
+          "end_line": 686,
           "label": "merge only if it wins"
         }
       ]
@@ -324,8 +324,8 @@
       "sources": [
         {
           "path": "router/server.js",
-          "line": 133,
-          "end_line": 156,
+          "line": 139,
+          "end_line": 162,
           "label": "steerSingle"
         },
         {
@@ -347,8 +347,8 @@
       "sources": [
         {
           "path": "router/server.js",
-          "line": 1013,
-          "end_line": 1043,
+          "line": 1025,
+          "end_line": 1055,
           "label": "candidate chain walk"
         }
       ]
@@ -364,8 +364,8 @@
       "sources": [
         {
           "path": "router/server.js",
-          "line": 799,
-          "end_line": 812,
+          "line": 811,
+          "end_line": 824,
           "label": "upstream attempt"
         }
       ]
@@ -382,14 +382,14 @@
       "sources": [
         {
           "path": "router/server.js",
-          "line": 856,
-          "end_line": 862,
+          "line": 868,
+          "end_line": 874,
           "label": "x-router response headers"
         },
         {
           "path": "router/server.js",
-          "line": 864,
-          "end_line": 909,
+          "line": 876,
+          "end_line": 921,
           "label": "stream with settle metering"
         },
         {
@@ -418,14 +418,14 @@
         },
         {
           "path": "router/server.js",
-          "line": 831,
-          "end_line": 841,
+          "line": 843,
+          "end_line": 853,
           "label": "classify before benching"
         },
         {
           "path": "router/server.js",
-          "line": 1130,
-          "end_line": 1143,
+          "line": 1142,
+          "end_line": 1155,
           "label": "bench order per class"
         }
       ]

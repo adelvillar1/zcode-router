@@ -5,39 +5,68 @@
     "title": "Quota flow — measured spend, calibrated allowance, steered routing, forecast exhaustion",
     "output": "docs/architecture/quota.html",
     "quality_profile": "showcase",
-    "viewBox": [1080, 696],
+    "viewBox": [
+      1080,
+      696
+    ],
     "repository": {
       "url": "git@github.com:adelvillar1/zcode-router.git",
-      "revision": "d4ac012ed93afc1595173af75d30a7dec679dcbb",
+      "revision": "52c1729810e6f1d06a8a2ea08c7ded12d4f6f82f",
       "link_mode": "local-only"
     },
     "views": [
       {
         "id": "measured",
         "label": "Measured path",
-        "focus": ["upstreams", "router", "ledger", "quotaState", "steer"],
+        "focus": [
+          "upstreams",
+          "router",
+          "ledger",
+          "quotaState",
+          "steer"
+        ],
         "note": "Every upstream call lands in the ledger; steering consumes the headroom it derives"
       },
       {
         "id": "calibration",
         "label": "Calibration",
-        "focus": ["roster", "ledger", "quotaState", "dashboard"],
+        "focus": [
+          "roster",
+          "ledger",
+          "quotaState",
+          "dashboard"
+        ],
         "note": "Console reads stamped with weighted spend; reconciled at every new read"
       },
       {
         "id": "forecast",
         "label": "Forecast leg",
-        "focus": ["exporter", "spendTable", "forecast", "owner"],
+        "focus": [
+          "exporter",
+          "spendTable",
+          "forecast",
+          "owner"
+        ],
         "note": "record:quota exports the table; budget-gate bands it; crossings escalate"
       }
     ]
   },
   "stages": [
-    { "label": "Spend" },
-    { "label": "Measure + declare" },
-    { "label": "Derive" },
-    { "label": "Steer" },
-    { "label": "Forecast" }
+    {
+      "label": "Spend"
+    },
+    {
+      "label": "Measure + declare"
+    },
+    {
+      "label": "Derive"
+    },
+    {
+      "label": "Steer"
+    },
+    {
+      "label": "Forecast"
+    }
   ],
   "nodes": [
     {
@@ -50,7 +79,12 @@
       "row": 1,
       "width": 120,
       "sources": [
-        { "path": "router/quota.mjs", "line": 4, "end_line": 5, "label": "no plan upstream exposes a quota API" }
+        {
+          "path": "router/quota.mjs",
+          "line": 4,
+          "end_line": 5,
+          "label": "no plan upstream exposes a quota API"
+        }
       ]
     },
     {
@@ -62,7 +96,12 @@
       "row": 2,
       "width": 130,
       "sources": [
-        { "path": "router/server.js", "line": 1002, "end_line": 1023, "label": "forward(): steered target first, then the chain" }
+        {
+          "path": "router/server.js",
+          "line": 1014,
+          "end_line": 1035,
+          "label": "forward(): steered target first, then the chain"
+        }
       ]
     },
     {
@@ -74,9 +113,24 @@
       "row": 1,
       "width": 140,
       "sources": [
-        { "path": "router/usage.mjs", "line": 106, "end_line": 139, "label": "record(): tokens, trigger, costUsd" },
-        { "path": "router/usage.mjs", "line": 170, "end_line": 181, "label": "hourly buckets + cumulative weighted counter" },
-        { "path": "router/usage.mjs", "line": 22, "end_line": 23, "label": "30-day retention, 200-row recent ring" }
+        {
+          "path": "router/usage.mjs",
+          "line": 106,
+          "end_line": 139,
+          "label": "record(): tokens, trigger, costUsd"
+        },
+        {
+          "path": "router/usage.mjs",
+          "line": 170,
+          "end_line": 181,
+          "label": "hourly buckets + cumulative weighted counter"
+        },
+        {
+          "path": "router/usage.mjs",
+          "line": 22,
+          "end_line": 23,
+          "label": "30-day retention, 200-row recent ring"
+        }
       ]
     },
     {
@@ -88,8 +142,18 @@
       "row": 3,
       "width": 140,
       "sources": [
-        { "path": "router/quota.mjs", "line": 58, "end_line": 69, "label": "pool / calendar / rolling window starts" },
-        { "path": "router/quota.mjs", "line": 82, "end_line": 88, "label": "calibration.reads stamped from the ledger" }
+        {
+          "path": "router/quota.mjs",
+          "line": 58,
+          "end_line": 69,
+          "label": "pool / calendar / rolling window starts"
+        },
+        {
+          "path": "router/quota.mjs",
+          "line": 82,
+          "end_line": 88,
+          "label": "calibration.reads stamped from the ledger"
+        }
       ]
     },
     {
@@ -102,8 +166,18 @@
       "row": 2,
       "width": 150,
       "sources": [
-        { "path": "router/quota.mjs", "line": 96, "end_line": 115, "label": "calibration pairs → allowance, headroom" },
-        { "path": "router/quota.mjs", "line": 120, "end_line": 124, "label": "impliedPct: last read extrapolated forward" }
+        {
+          "path": "router/quota.mjs",
+          "line": 96,
+          "end_line": 115,
+          "label": "calibration pairs → allowance, headroom"
+        },
+        {
+          "path": "router/quota.mjs",
+          "line": 120,
+          "end_line": 124,
+          "label": "impliedPct: last read extrapolated forward"
+        }
       ]
     },
     {
@@ -115,8 +189,18 @@
       "row": 3,
       "width": 120,
       "sources": [
-        { "path": "router/server.js", "line": 1953, "end_line": 1967, "label": "declared quota state + neutral providers" },
-        { "path": "router/dashboard.html", "line": 437, "end_line": 437, "label": "quota tab hidden until SHOW_QUOTA_TAB" }
+        {
+          "path": "router/server.js",
+          "line": 1965,
+          "end_line": 1979,
+          "label": "declared quota state + neutral providers"
+        },
+        {
+          "path": "router/dashboard.html",
+          "line": 437,
+          "end_line": 437,
+          "label": "quota tab hidden until SHOW_QUOTA_TAB"
+        }
       ]
     },
     {
@@ -128,9 +212,24 @@
       "row": 0,
       "width": 140,
       "sources": [
-        { "path": "router/suggest.mjs", "line": 79, "end_line": 79, "label": "exhausted = headroom ≤ 0.05" },
-        { "path": "router/suggest.mjs", "line": 160, "end_line": 164, "label": "exhausted sorts last in fallbacks" },
-        { "path": "router/suggest.mjs", "line": 203, "end_line": 203, "label": "exhausted excluded from proposer pool" }
+        {
+          "path": "router/suggest.mjs",
+          "line": 79,
+          "end_line": 79,
+          "label": "exhausted = headroom ≤ 0.05"
+        },
+        {
+          "path": "router/suggest.mjs",
+          "line": 160,
+          "end_line": 164,
+          "label": "exhausted sorts last in fallbacks"
+        },
+        {
+          "path": "router/suggest.mjs",
+          "line": 203,
+          "end_line": 203,
+          "label": "exhausted excluded from proposer pool"
+        }
       ]
     },
     {
@@ -142,9 +241,24 @@
       "row": 2,
       "width": 140,
       "sources": [
-        { "path": "router/server.js", "line": 133, "end_line": 156, "label": "steerSingle: pickCandidate over the tier chain" },
-        { "path": "router/quota.mjs", "line": 170, "end_line": 182, "label": "pickCandidate: threshold 0.4, undeclared pass" },
-        { "path": "router/server.js", "line": 140, "end_line": 142, "label": "cooled-down providers steer as zero headroom" }
+        {
+          "path": "router/server.js",
+          "line": 139,
+          "end_line": 162,
+          "label": "steerSingle: pickCandidate over the tier chain"
+        },
+        {
+          "path": "router/quota.mjs",
+          "line": 170,
+          "end_line": 182,
+          "label": "pickCandidate: threshold 0.4, undeclared pass"
+        },
+        {
+          "path": "router/server.js",
+          "line": 146,
+          "end_line": 148,
+          "label": "cooled-down providers steer as zero headroom"
+        }
       ]
     },
     {
@@ -157,8 +271,18 @@
       "yOffset": -20,
       "width": 140,
       "sources": [
-        { "path": "router/failclass.mjs", "line": 25, "end_line": 28, "label": "quota vocabulary matched before the 429 pattern" },
-        { "path": "router/failclass.mjs", "line": 30, "end_line": 46, "label": "classifyFailure: walk + bench per verdict" }
+        {
+          "path": "router/failclass.mjs",
+          "line": 25,
+          "end_line": 28,
+          "label": "quota vocabulary matched before the 429 pattern"
+        },
+        {
+          "path": "router/failclass.mjs",
+          "line": 30,
+          "end_line": 46,
+          "label": "classifyFailure: walk + bench per verdict"
+        }
       ]
     },
     {
@@ -170,9 +294,24 @@
       "row": 1,
       "width": 150,
       "sources": [
-        { "path": "tools/record-quota-table.mjs", "line": 94, "end_line": 109, "label": "hourly buckets × offpeakWeight at mid-hour" },
-        { "path": "tools/record-quota-table.mjs", "line": 111, "end_line": 130, "label": "idempotent append, one row per (provider, hour)" },
-        { "path": "package.json", "line": 20, "end_line": 20, "label": "record:quota script" }
+        {
+          "path": "tools/record-quota-table.mjs",
+          "line": 94,
+          "end_line": 109,
+          "label": "hourly buckets × offpeakWeight at mid-hour"
+        },
+        {
+          "path": "tools/record-quota-table.mjs",
+          "line": 111,
+          "end_line": 130,
+          "label": "idempotent append, one row per (provider, hour)"
+        },
+        {
+          "path": "package.json",
+          "line": 20,
+          "end_line": 20,
+          "label": "record:quota script"
+        }
       ]
     },
     {
@@ -184,8 +323,18 @@
       "row": 2,
       "width": 130,
       "sources": [
-        { "path": "tools/record-quota-table.mjs", "line": 40, "end_line": 41, "label": "~/.local/share/dev-decisions/tables path" },
-        { "path": "workflows/quota-forecast.dwf.ts", "line": 48, "end_line": 48, "label": "QUOTA_TABLE store literal" }
+        {
+          "path": "tools/record-quota-table.mjs",
+          "line": 40,
+          "end_line": 41,
+          "label": "~/.local/share/dev-decisions/tables path"
+        },
+        {
+          "path": "workflows/quota-forecast.dwf.ts",
+          "line": 48,
+          "end_line": 48,
+          "label": "QUOTA_TABLE store literal"
+        }
       ]
     },
     {
@@ -198,9 +347,24 @@
       "row": 3,
       "width": 140,
       "sources": [
-        { "path": "workflows/quota-forecast.dwf.ts", "line": 50, "end_line": 53, "label": "horizon default 72h; fail-open by name" },
-        { "path": "workflows/quota-forecast.dwf.ts", "line": 113, "end_line": 136, "label": "budget-gate: quantile band per plan" },
-        { "path": "workflows/quota-forecast.dwf.ts", "line": 138, "end_line": 172, "label": "band edges read defensively, never guessed" }
+        {
+          "path": "workflows/quota-forecast.dwf.ts",
+          "line": 50,
+          "end_line": 53,
+          "label": "horizon default 72h; fail-open by name"
+        },
+        {
+          "path": "workflows/quota-forecast.dwf.ts",
+          "line": 113,
+          "end_line": 136,
+          "label": "budget-gate: quantile band per plan"
+        },
+        {
+          "path": "workflows/quota-forecast.dwf.ts",
+          "line": 138,
+          "end_line": 172,
+          "label": "band edges read defensively, never guessed"
+        }
       ]
     },
     {
@@ -213,8 +377,18 @@
       "yOffset": -20,
       "width": 140,
       "sources": [
-        { "path": "workflows/quota-forecast.dwf.ts", "line": 219, "end_line": 228, "label": "crossing plans escalate; answer carried" },
-        { "path": "workflows/quota-forecast.dwf.ts", "line": 94, "end_line": 106, "label": "fail-open: absent table ends the loop" }
+        {
+          "path": "workflows/quota-forecast.dwf.ts",
+          "line": 219,
+          "end_line": 228,
+          "label": "crossing plans escalate; answer carried"
+        },
+        {
+          "path": "workflows/quota-forecast.dwf.ts",
+          "line": 94,
+          "end_line": 106,
+          "label": "fail-open: absent table ends the loop"
+        }
       ]
     }
   ],
@@ -228,7 +402,10 @@
       "route": "straight",
       "fromSide": "bottom",
       "toSide": "top",
-      "labelAt": [100, 330]
+      "labelAt": [
+        100,
+        330
+      ]
     },
     {
       "id": "meter",
@@ -238,8 +415,20 @@
       "variant": "emphasis",
       "fromSide": "right",
       "toSide": "left",
-      "via": [[205, 385], [205, 271]],
-      "labelAt": [240, 405]
+      "via": [
+        [
+          205,
+          385
+        ],
+        [
+          205,
+          271
+        ]
+      ],
+      "labelAt": [
+        240,
+        405
+      ]
     },
     {
       "id": "export-table",
@@ -249,8 +438,20 @@
       "variant": "dashed",
       "fromSide": "top",
       "toSide": "top",
-      "via": [[315, 115], [960, 115]],
-      "labelAt": [500, 108]
+      "via": [
+        [
+          315,
+          115
+        ],
+        [
+          960,
+          115
+        ]
+      ],
+      "labelAt": [
+        500,
+        108
+      ]
     },
     {
       "id": "weighted-spend",
@@ -260,8 +461,20 @@
       "variant": "emphasis",
       "fromSide": "bottom",
       "toSide": "bottom",
-      "via": [[315, 455], [530, 455]],
-      "labelAt": [390, 340]
+      "via": [
+        [
+          315,
+          455
+        ],
+        [
+          530,
+          455
+        ]
+      ],
+      "labelAt": [
+        390,
+        340
+      ]
     },
     {
       "id": "calibration-reads",
@@ -270,8 +483,20 @@
       "label": "read (date, % used)",
       "fromSide": "right",
       "toSide": "left",
-      "via": [[430, 499], [430, 385]],
-      "labelAt": [372, 440]
+      "via": [
+        [
+          430,
+          499
+        ],
+        [
+          430,
+          385
+        ]
+      ],
+      "labelAt": [
+        372,
+        440
+      ]
     },
     {
       "id": "headroom-suggest",
@@ -280,8 +505,20 @@
       "label": "headroom per declared provider",
       "fromSide": "top",
       "toSide": "bottom",
-      "via": [[530, 212], [745, 212]],
-      "labelAt": [610, 199]
+      "via": [
+        [
+          530,
+          212
+        ],
+        [
+          745,
+          212
+        ]
+      ],
+      "labelAt": [
+        610,
+        199
+      ]
     },
     {
       "id": "headroom-steer",
@@ -292,7 +529,10 @@
       "route": "straight",
       "fromSide": "right",
       "toSide": "left",
-      "labelAt": [640, 372]
+      "labelAt": [
+        640,
+        372
+      ]
     },
     {
       "id": "panel-feed",
@@ -301,8 +541,24 @@
       "label": "quota state + implied %",
       "fromSide": "bottom",
       "toSide": "left",
-      "via": [[530, 460], [660, 460], [660, 499]],
-      "labelAt": [610, 445]
+      "via": [
+        [
+          530,
+          460
+        ],
+        [
+          660,
+          460
+        ],
+        [
+          660,
+          499
+        ]
+      ],
+      "labelAt": [
+        610,
+        445
+      ]
     },
     {
       "id": "cooldown-bench",
@@ -311,8 +567,20 @@
       "label": "cooldown → 0% headroom",
       "fromSide": "right",
       "toSide": "right",
-      "via": [[852, 593], [852, 385]],
-      "labelAt": [880, 459]
+      "via": [
+        [
+          852,
+          593
+        ],
+        [
+          852,
+          385
+        ]
+      ],
+      "labelAt": [
+        880,
+        459
+      ]
     },
     {
       "id": "fresh-rows",
@@ -323,7 +591,10 @@
       "route": "straight",
       "fromSide": "bottom",
       "toSide": "top",
-      "labelAt": [960, 328]
+      "labelAt": [
+        960,
+        328
+      ]
     },
     {
       "id": "forecast-band",
@@ -333,7 +604,10 @@
       "route": "straight",
       "fromSide": "bottom",
       "toSide": "top",
-      "labelAt": [960, 438]
+      "labelAt": [
+        960,
+        438
+      ]
     },
     {
       "id": "escalate",
@@ -344,7 +618,10 @@
       "route": "straight",
       "fromSide": "bottom",
       "toSide": "top",
-      "labelAt": [960, 550]
+      "labelAt": [
+        960,
+        550
+      ]
     }
   ],
   "cards": [

@@ -9,7 +9,7 @@
     "repository": {
       "url": "git@github.com:adelvillar1/zcode-router.git",
       "link_mode": "local-only",
-      "revision": "d4ac012ed93afc1595173af75d30a7dec679dcbb"
+      "revision": "52c1729810e6f1d06a8a2ea08c7ded12d4f6f82f"
     },
     "views": [
       {
@@ -164,20 +164,20 @@
       "sources": [
         {
           "path": "lib/cli.mjs",
-          "line": 352,
-          "end_line": 369,
+          "line": 353,
+          "end_line": 370,
           "label": "validate before anything is written"
         },
         {
           "path": "lib/cli.mjs",
-          "line": 371,
-          "end_line": 393,
+          "line": 372,
+          "end_line": 394,
           "label": "render config.json + create .env"
         },
         {
           "path": "lib/cli.mjs",
-          "line": 414,
-          "end_line": 456,
+          "line": 415,
+          "end_line": 457,
           "label": "sync · service · health-check"
         }
       ]
@@ -272,8 +272,8 @@
         },
         {
           "path": "lib/cli.mjs",
-          "line": 96,
-          "end_line": 101,
+          "line": 97,
+          "end_line": 102,
           "label": "atomic write; re-read on mtime"
         }
       ]
@@ -306,8 +306,8 @@
         },
         {
           "path": "lib/cli.mjs",
-          "line": 387,
-          "end_line": 390,
+          "line": 388,
+          "end_line": 391,
           "label": "created by apply when missing"
         }
       ]
@@ -328,8 +328,8 @@
       "sources": [
         {
           "path": "lib/cli.mjs",
-          "line": 414,
-          "end_line": 426,
+          "line": 415,
+          "end_line": 427,
           "label": "sync library into ~/.zcode/workflows"
         },
         {
@@ -356,14 +356,14 @@
       "sources": [
         {
           "path": "lib/cli.mjs",
-          "line": 128,
-          "end_line": 148,
+          "line": 129,
+          "end_line": 149,
           "label": "ships the plane from manifest exports"
         },
         {
           "path": "lib/cli.mjs",
-          "line": 149,
-          "end_line": 165,
+          "line": 150,
+          "end_line": 166,
           "label": "node_modules/workflow-plane symlink"
         },
         {
@@ -418,19 +418,20 @@
       "sources": [
         {
           "path": "router/server.js",
-          "line": 1547,
-          "label": "POST /v1/chat/completions"
+          "line": 1559,
+          "label": "POST /v1/chat/completions",
+          "end_line": 1559
         },
         {
           "path": "router/server.js",
-          "line": 428,
-          "end_line": 437,
+          "line": 434,
+          "end_line": 443,
           "label": "capability rules always win"
         },
         {
           "path": "router/server.js",
-          "line": 449,
-          "end_line": 462,
+          "line": 455,
+          "end_line": 468,
           "label": "one cached judgment per task"
         }
       ]
@@ -463,8 +464,8 @@
         },
         {
           "path": "router/server.js",
-          "line": 84,
-          "end_line": 87,
+          "line": 90,
+          "end_line": 93,
           "label": "ledger file + off-peak weights"
         }
       ]
@@ -491,14 +492,14 @@
         },
         {
           "path": "router/server.js",
-          "line": 2036,
-          "end_line": 2086,
+          "line": 2048,
+          "end_line": 2098,
           "label": "PUT /api/roster — whole roster back"
         },
         {
           "path": "router/server.js",
-          "line": 1064,
-          "end_line": 1084,
+          "line": 1076,
+          "end_line": 1096,
           "label": "spawns the kit CLI — no second copy"
         }
       ]
