@@ -174,6 +174,18 @@ content-production's voice leg.
   line. Grant absent is the default; the leg only appears with `--grant media`
   at spawn. Remediation: none if you did not ask for it; otherwise confirm the
   grant and that `kit doctor`'s media row is green.
+- **A ported `.dwf.ts` loop refuses every argument you pass it.** The refusal
+  reads *"unknown argument "task" — asr-calibrate.dwf declares: (none)"*, and
+  it names an arg the file plainly declares. The plane's `parseHeader` matches
+  the engine's `/* workflow` marker; every kit file carries
+  `/* zcode-workflow` (the kit's own parser in `lib/workflowlib.mjs` reads that
+  one), so the plane sees an empty declaration and rejects the first key. This
+  is kit-wide and predates the media port — it hits the tabular, semantic and
+  diagram loops identically, and it is why the loops ship with their defaults
+  pinned rather than a documented override. Remediation: run the loop with no
+  `--args` and edit the default in the file, or wait for the marker tolerance
+  in the plane (trigger: this wave — the port's assignable loops are the first
+  consumers whose whole point is a caller-supplied arg).
 
 ## Diagram lane / world.diagram
 
