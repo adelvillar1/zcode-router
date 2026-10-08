@@ -97,8 +97,10 @@ const endAt = readme.indexOf(END);
 if (startAt >= 0 && endAt > startAt) {
   // Index slicing, not a marker regex — the marker text is full of regex
   // metacharacters, and a pattern that never matches would silently no-op
-  // every refresh while reporting "current".
-  const next = check ? readme : readme.slice(0, startAt) + md + readme.slice(endAt + END.length);
+  // every refresh while reporting "current". `next` is built in both modes:
+  // only the write is conditional, or --check compares the README against
+  // itself and can never go red.
+  const next = readme.slice(0, startAt) + md + readme.slice(endAt + END.length);
   if (next === readme) {
     console.log("workflow-inventory: README.md is current");
     process.exit(0);

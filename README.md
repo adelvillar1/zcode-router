@@ -78,7 +78,7 @@ in the installed router can resolve `workflow-plane/*.mjs`.
   installed beside the router. Two kinds of files live there: the `.dwf.ts`
   delegation workflows the router assigns, and the loop library — seven looped
   workflows (deep-research, triage, refine-loop, red-team, watchdog,
-  remediate, router-eval) plus four zero-model-call probes — in which every
+  remediate, router-eval) plus five zero-model-call probes — in which every
   flat judgment rides the dev-decisions/sys1 judge layer instead of a model
   call, and search credits are structurally unspendable by agents. Six
   tabular loops ride the dev-decisions lane: quota-forecast (per-plan
@@ -89,8 +89,15 @@ in the installed router can resolve `workflow-plane/*.mjs`.
   the directory they landed in), triage eval (sdm1 routing predictions
   journaled eval-only, never applied), and fleet-watch (watchdog runs flag
   repos deviating from fleet peers). Two more loops ride the semantic lane —
-  dupe-watch and render-watch (see the semantic decisions bullet below):
-  fifteen loops in all.
+  dupe-watch and render-watch (see the semantic decisions bullet below) — one
+  rides the diagram lane, diagram-refresh (see the diagram maintenance bullet
+  below) — and three ride the media lane — asr-calibrate (the pinned ASR
+  fixture graded per provider leg, the lane's promotion evidence),
+  media-budget-watch (the daily telemetry cadence, ingested then forecast),
+  and narrate (a script spoken to voice and gated against itself, advisory) —
+  plus content-production's voice leg (see the media decisions bullet below):
+  nineteen loops in all, carried in eighteen loop files (the fleet-watch
+  section rides inside watchdog).
 - **Local browsing & keyless-first search** — the plane's net legs are a
   ladder: the operator-installed moli browser renders pages locally first
   (`browserFetch` / `web_render`, the `browser` grant — default-off), a
@@ -121,6 +128,15 @@ in the installed router can resolve `workflow-plane/*.mjs`.
   naming what the geometry would have picked beside the judge's actual pick.
   Embeddings propose, sys1/sdm1 dispose. See
   [`docs/features/semantic-lane.md`](docs/features/semantic-lane.md).
+- **Media renders are generated, gated, and advisory.** `world.media(command, args)` execs the dev-decisions CLI's
+  gen1 lane — text spoken to audio, a render transcribed and graded against the script that produced it, ASR
+  calibrated against pinned fixtures, image renders, and the audio-seconds spend forecast — with `--json` injected on
+  every call and the bridge reporting transport while each row carries its own verdict. Batch-only by law, like the
+  lane before it: loops call it between rounds, never inside an ask. dev-decisions is the gate — this surface speaks
+  its verbs and never a provider's API — every render is eval-only, and a media-gate verdict is advisory and never a
+  block. Absent CLI (*"dev-decisions not installed — the media grant needs the dev-decisions CLI with gen1"*), a
+  missing key (named by variable), or a thin table → the loop names the absence and proceeds exactly as today. See
+  [`docs/features/media-lane.md`](docs/features/media-lane.md).
 - **Diagram maintenance** — `world.diagram` keeps this kit's own archify
   diagrams (`docs/architecture/` — the plane, the request lifecycle, the
   quota, the architecture) honest after every code wave: every node carries
@@ -483,9 +499,11 @@ The library's fan-out workflows: `swarm` (decompose, build, review),
 (changes whose findings get confirmed before anyone acts), `deep-dive`,
 `decision-memo`, `data-triage`, `regression-claim-verification`,
 `coverage-push`, `migration`, `plan-backlog-generation`, `postmortem`. Of the
-35 workflows in `workflows/`, 19 are assignable by the router; the rest take
+41 workflows in `workflows/`, 23 are assignable by the router; the rest take
 structured arguments rather than a task and stay hand-launched — the three
-tabular loops among them.
+tabular loops, the two semantic ones, and narrate among them, with
+asr-calibrate and media-budget-watch assignable because their task arg is a
+plain string.
 
 **Asking the router directly** — `POST /route` (local token) returns the same
 verdict without calling any model:
@@ -521,13 +539,14 @@ that registry: the kit reads `.dwf.ts` only, while the plane resolves its own
 
 ### The workflow inventory (generated — the same parse `kit apply` runs)
 
-Delegation library: **38** `.dwf.ts` files — **21 router-assignable**, 17 hand-launched.
+Delegation library: **41** `.dwf.ts` files — **23 router-assignable**, 18 hand-launched.
 
-**Router-assignable (21)** — the judge can delegate these by shape match:
+**Router-assignable (23)** — the judge can delegate these by shape match:
 
 | workflow | task arg | what it is |
 |---|---|---|
 | `adversarial-solve` | task | Solves a problem with several plausible solutions by competition: champions build competing solutions independently (no peeking), a judge c… |
+| `asr-calibrate` | task | The media lane's promotion engine, as a batch loop: the pinned ASR fixture is round-tripped through the live gen1 legs into the shared feed… |
 | `bug-hunt` | symptom | Finds out why something is broken: a detective lists 3-5 distinct plausible causes, testers try to prove each one in parallel, and an indep… |
 | `content-production` | brief | Produces a document, report, or deck content from a brief: an outliner shapes the thesis and sections, section writers draft in parallel, a… |
 | `coverage-push` | target | Adds the missing tests: per-area gap finders and test writers work chained in parallel, then the test suite decides — fix rounds until npm… |
@@ -537,6 +556,7 @@ Delegation library: **38** `.dwf.ts` files — **21 router-assignable**, 17 hand
 | `deep-dive` | scope | Explains or assesses a system: explorers cover the subsystems in parallel and flag risks, a writer integrates one architecture assessment w… |
 | `design-review` | target | Runs a deep 30-item design critique of a UI surface: an independent read-only auditor per checklist item across the skill's dimensions, the… |
 | `diagram-refresh` | scope | The archify diagrams kept anchored to the code. |
+| `media-budget-watch` | scope | Media spend watched as a batch loop: gen1's telemetry sink is ingested into the tabular lane's media-seconds table (occurrence-keyed, so a… |
 | `migration` | task | Migrates a codebase from one approach to another with command gates: a planner splits the work into independent areas, migrators work in pa… |
 | `ocr-code-review` | from | Runs a coverage-guaranteed code review over a git range using the alibaba open-code-review CLI as its scaffolding: the delegate preview fix… |
 | `plan-backlog-generation` | scope | Generates a plan backlog: scans scope for gaps in parallel, writes numbered plan files with dependency waves, settles sequencing with the r… |
@@ -549,7 +569,7 @@ Delegation library: **38** `.dwf.ts` files — **21 router-assignable**, 17 hand
 | `swarm` | task | Runs a task as a multi-agent swarm with router-decided topology: the auto-router decides single vs mixture vs swarm, the swarm path decompo… |
 | `ui-implementation-review` | target | Runs a deep, checklist-driven UI implementation review: the skill's grep recipes run as deterministic gates with absence never recorded as… |
 
-**Hand-launched (17)** — structured args, run by explicit path:
+**Hand-launched (18)** — structured args, run by explicit path:
 
 | workflow | args | what it is |
 |---|---|---|
@@ -564,6 +584,7 @@ Delegation library: **38** `.dwf.ts` files — **21 router-assignable**, 17 hand
 | `git-history-analytics` | branch, repo, skillDir, timezone | Turns a repository's history into measured analytics: pulls every commit through the skill's own script as a deterministic gate, runs the a… |
 | `git-history-project-retrospective` | branch, repo, skillDir | Turns a repository's full GitHub history into an evidence-based project retrospective: pulls every commit through the skill's own analysis… |
 | `meeting-action-items` | meetingContext, meetingSources, tracker, trackerTarget | Turns a meeting into tracked action items: extracts items from transcripts in parallel, resolves owners, files each to the issue tracker be… |
+| `narrate` | script, audio, request, meta, project, outDir, voice, language, speed, format, dryRun | The media lane's narration seam, as a one-pass batch loop: render a request file of lines through gen1's speak legs, assemble the hyperfram… |
 | `pipeline-event-log` | — | Audits a workspace implementation against the pipeline-event-log skill's verification checklist: one auditor plus independent confirmers pe… |
 | `plan-status-audit` | — | Audits existing plans: discovers candidate plans with deterministic gates, runs each plan's evidence checks (git history, branches, recaps)… |
 | `production-sync-procedure` | destructiveApproved, isCleanupSync | Prepares and verifies a production database sync: enforces the never-sync-before-deprecating sequencing with the owner-supplied classificat… |
@@ -617,7 +638,8 @@ Regenerate with `npm run workflows:inventory`; `--check` fails when this table i
 - **Run capabilities are grants, not ambient power.** Every capability a run
   uses (workspace io, net-fetch, net-search, installs, dev servers, background
   commands, sub-agents, local browsing via moli — `browser`/`browser-layout` —
-  and the tabular lane, `tabular`; the last three default-off) is declared at
+  and the decision lanes' grants, `tabular`, `semantic`, `diagram`, `media`;
+  the last six default-off) is declared at
   spawn and journalled against the call that used it. Search keys resolve from
   `~/.zcode/router/.env` at the wire, so neither the CLI nor the workflows
   carry key material — a key-neutrality grep over `lib/` and `workflows/`
@@ -645,14 +667,20 @@ router/dashboard.html        the local dashboard (usage with cost + attribution,
 router/README.md             router internals: routing order, judgment, MoA, quota,
                              failover, thinking levels, logs
 workflows/                   the delegation library (.dwf.ts files — the three tabular and two
-                             semantic loops are .dwf too, hand-launched) and the loop library
-                             (.ts — seven loops, four probes; fifteen loops in all)
+                             semantic loops are .dwf too, hand-launched, and the media lane adds
+                             asr-calibrate and media-budget-watch assignable plus narrate
+                             hand-launched) and the loop library
+                             (.ts — seven loops, five probes; nineteen loops in all, in
+                             eighteen loop files)
 tools/run-probes.mjs         `npm test` — runs every tools/{test,unit,probe}-*.mjs by glob,
                              sequentially (fixed per-probe ports), zero model calls; every run
                              appends per-suite outcomes to the dev-decisions probe-outcomes table
 tools/record-quota-table.mjs `npm run record:quota` — the usage ledger's hourly weighted spend
                              (~/.zcode/router/logs/usage.json) into the dev-decisions store's
                              quota-spend table, idempotent per bucket
+tools/record-media-telemetry.mjs `npm run record:media` — gen1's telemetry sink into the
+                             dev-decisions store's media_runs table, idempotent per occurrence;
+                             the daily cadence that buys media-budget-watch its forecast floors
 tools/fake-upstream.mjs      the scripted OpenAI-compatible provider whose model names
                              encode failures (-429ra5, -401, -402, -500, -400, -stream)
 tools/probe-failover.mjs     the /v1 wire contract end to end: walk, benches, parity,
