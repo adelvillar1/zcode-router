@@ -9,7 +9,7 @@
     "repository": {
       "url": "git@github.com:adelvillar1/zcode-router.git",
       "link_mode": "local-only",
-      "revision": "52c1729810e6f1d06a8a2ea08c7ded12d4f6f82f"
+      "revision": "41f479269b01fafff9cd18f8cc2404be914111e3"
     },
     "views": [
       {
@@ -123,7 +123,7 @@
       "id": "kitwf",
       "type": "database",
       "label": "workflows/ — delegation library",
-      "sublabel": "37 saved .dwf.ts · zcode-workflow metadata",
+      "sublabel": "41 saved .dwf.ts · zcode-workflow metadata",
       "pos": [
         32,
         278
@@ -316,7 +316,7 @@
       "id": "workflows-installed",
       "type": "database",
       "label": "~/.zcode/workflows/*.dwf.ts",
-      "sublabel": "the delegation library ZCode runs — 35 installed",
+      "sublabel": "the delegation library ZCode runs — 32 installed",
       "pos": [
         565,
         382
