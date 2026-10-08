@@ -121,6 +121,15 @@ in the installed router can resolve `workflow-plane/*.mjs`.
   naming what the geometry would have picked beside the judge's actual pick.
   Embeddings propose, sys1/sdm1 dispose. See
   [`docs/features/semantic-lane.md`](docs/features/semantic-lane.md).
+- **Diagram maintenance** — `world.diagram` keeps this kit's own archify
+  diagrams (`docs/architecture/` — the plane, the request lifecycle, the
+  quota, the architecture) honest after every code wave: every node carries
+  source refs pinned to file, lines, and commit, and diagram-refresh audits
+  them by byte-identity against the pin, re-pins the ones that purely moved,
+  finalizes through the archify CLI, and renders the stills. The loop
+  (`diagram` grant, default-off) anchors claims; authoring them stays with
+  the agent, and the stills stay read by a human. See
+  [`docs/features/diagram-lane.md`](docs/features/diagram-lane.md).
 - **A run API** — `POST /v1/runs` on the kit's own wire lets an application
   spawn a workflow run under a per-app token whose `grantCeiling` bounds what
   it may request, answer the run's escalations while it is live, and collect
@@ -512,9 +521,9 @@ that registry: the kit reads `.dwf.ts` only, while the plane resolves its own
 
 ### The workflow inventory (generated — the same parse `kit apply` runs)
 
-Delegation library: **37** `.dwf.ts` files — **20 router-assignable**, 17 hand-launched.
+Delegation library: **38** `.dwf.ts` files — **21 router-assignable**, 17 hand-launched.
 
-**Router-assignable (20)** — the judge can delegate these by shape match:
+**Router-assignable (21)** — the judge can delegate these by shape match:
 
 | workflow | task arg | what it is |
 |---|---|---|
@@ -527,6 +536,7 @@ Delegation library: **37** `.dwf.ts` files — **20 router-assignable**, 17 hand
 | `decision-memo` | question | Decides between options with a written memo: independent advocates make each option's strongest honest case in parallel, a judge picks (and… |
 | `deep-dive` | scope | Explains or assesses a system: explorers cover the subsystems in parallel and flag risks, a writer integrates one architecture assessment w… |
 | `design-review` | target | Runs a deep 30-item design critique of a UI surface: an independent read-only auditor per checklist item across the skill's dimensions, the… |
+| `diagram-refresh` | scope | The archify diagrams kept anchored to the code. |
 | `migration` | task | Migrates a codebase from one approach to another with command gates: a planner splits the work into independent areas, migrators work in pa… |
 | `ocr-code-review` | from | Runs a coverage-guaranteed code review over a git range using the alibaba open-code-review CLI as its scaffolding: the delegate preview fix… |
 | `plan-backlog-generation` | scope | Generates a plan backlog: scans scope for gaps in parallel, writes numbered plan files with dependency waves, settles sequencing with the r… |
