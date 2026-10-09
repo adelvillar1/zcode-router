@@ -126,6 +126,8 @@ Operational reference: `docs/features/dashboard.md`.
 
 `kit apply` installs a **launchd user agent** (macOS) or **systemd user unit** (Linux) labeled `com.zcode.model-router` that keeps the router running and restarts it on failure; `kit apply` restarts it after re-rendering and health-checks `/healthz`. On other platforms the kit prints manual run instructions. Background jobs: none — the router is a single long-lived process; metering, quota windows, and cache eviction all happen in-process.
 
+That label is the kit's *default*, not an assumption. Another tool can own the service — the ZCode app does on the machine this was built on — and the kit then reloads that owner's label rather than its own: it finds the running router by joining `launchctl list` against `ps` on the router's own `server.js` path, reloads with a `bootout` + `bootstrap` (a `kickstart -k` restarts with the definition launchd already loaded, so an edited plist would silently not take effect), retires every other loaded label running the same `server.js` (they all carry `KeepAlive` and would take the port during the reload window), and never rewrites an owner's plist — it reloads what is on disk so the owner's own edit takes effect, naming the drift instead. `kit doctor` and `kit status` report whose service is running.
+
 ## 9. Deployment (new machine)
 
 ```bash

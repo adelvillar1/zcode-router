@@ -13,7 +13,10 @@ Treat `!` lines as things to explain, and remaps as real (a fallback fired becau
 
 ## Router not reachable / not on :8300
 
-- `kit status` → is the launchd service loaded? Restart path: `kit apply` (renders, restarts, health-checks).
+- `kit status` → is the launchd service loaded, and **whose**? Both `kit status` and `kit doctor` name the label that is running the router and flag it when it is owned elsewhere. On a machine where the ZCode app installed the service, that label is `com.alejandrodelvillar.zcode-model-router` and the kit's own `com.zcode.model-router` is a competing job, not the live one — a doctor that reported only the kit's unit would read green while the live router ran an old plane.
+- Restart path: `kit apply` (renders, restarts, health-checks). The reload is a `bootout` + `bootstrap` of the label launchd is *actually running*, found by joining `launchctl list` against `ps` on the router's own `server.js` — never by the kit's hardcoded label. A `kickstart -k` alone restarts with the definition launchd already loaded, so an edited plist silently does not take effect and you see a fresh PID still on the old plane.
+- If `kit apply` reloads and the router still comes back on someone else's definition, a third label was competing: every loaded label running the same `server.js` is retired before the reload, because they all carry `KeepAlive` and the port is free for exactly the window between the bootout and the new process binding it. `launchctl list | grep -i router` shows what is left; the apply report names each one it retired.
+- An owner's own plist is never rewritten — the kit reloads whatever is on disk, so an edit *you* made takes effect, and names the drift from the kit's definition instead of overwriting it.
 - Health endpoint: `curl http://127.0.0.1:8300/healthz` (no auth).
 - The router binds loopback only — remote access is out of scope by design.
 
