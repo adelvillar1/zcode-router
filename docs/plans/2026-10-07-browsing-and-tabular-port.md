@@ -1,5 +1,5 @@
 ---
-status: active
+status: completed
 created: 2026-10-07
 updated: 2026-10-07
 slug: browsing-and-tabular-port
@@ -39,14 +39,23 @@ Harness/world verification through a real workflow, both-edition `npm test` (the
 
 ## Acceptance criteria
 
-- [ ] **C0** doctor: moli + dev-decisions rows, both branches exercised (present here; absent via env pin).
-- [ ] **C1** producers: record-quota-table idempotent per bucket against a fixture; run-probes appends outcomes; `npm run record:quota` wired; kit ledger default path.
-- [ ] **C2** the three loops parse via `kit workflows list`, transform-compile through the plane, and carry the fail-open sentences verbatim.
-- [ ] **C3** consumers: review-sweep risk annotation, triage eval head (`applied:false`, grep-provable), watchdog fleet section — ported to the kit files' own shapes, each degrading by name without the grant/CLI.
-- [ ] **C4** both engine unit probes pass in the kit (cross-edition coverage statement); kit `npm test` green (8 suites).
-- [ ] **C5** check:port green (deployment named, not done); engine `npm test` untouched-green.
-- [ ] **C6** docs in-wave: README, both feature docs, TROUBLESHOOTING, both specs, STATE-SNAPSHOT replaced, CLAUDE state; SVG audit recorded (edits only where claims are false/incomplete); plan closed; recap filed.
-- [ ] **C7** zero new runtime dependencies; neutrality grep clean; `node --check` clean on touched files; the ZCode seams untouched (`upstream()` merge, `KIT_ROOT` apply chain, `AGNOSTIC_ROUTER_KIT_HOME`/`MEMORY_FILE_PATH` pins, memory ceilings, operator gate).
+- [x] **C0** doctor: moli + dev-decisions rows, both branches exercised (present here; absent via env pin).
+- [x] **C1** producers: record-quota-table idempotent per bucket against a fixture; run-probes appends outcomes; `npm run record:quota` wired; kit ledger default path.
+- [x] **C2** the three loops parse via `kit workflows list`, transform-compile through the plane, and carry the fail-open sentences verbatim.
+- [x] **C3** consumers: review-sweep risk annotation, triage eval head (`applied:false`, grep-provable), watchdog fleet section — ported to the kit files' own shapes, each degrading by name without the grant/CLI.
+- [x] **C4** both engine unit probes pass in the kit (cross-edition coverage statement); kit `npm test` green (8 suites).
+- [x] **C5** check:port green (deployment named, not done); engine `npm test` untouched-green.
+- [x] **C6** docs in-wave: README, both feature docs, TROUBLESHOOTING, both specs, STATE-SNAPSHOT replaced, CLAUDE state; SVG audit recorded (edits only where claims are false/incomplete); plan closed; recap filed.
+- [x] **C7** zero new runtime dependencies; neutrality grep clean; `node --check` clean on touched files; the ZCode seams untouched (`upstream()` merge, `KIT_ROOT` apply chain, `AGNOSTIC_ROUTER_KIT_HOME`/`MEMORY_FILE_PATH` pins, memory ceilings, operator gate).
+
+## What landed (deviations recorded honestly)
+
+- **Five commits** (`902c0ea` → diagrams): the hardening port's stray uncommitted contract prose landed first (found in the tree, verified against shipped code), then W-A's shell (doctor rows, producers, two unit probes, three loops, three consumer sections), W-B's docs + audits, and the diagram redo.
+- **The kit's workflow loader diverged as the survey warned**: loops are `.dwf.ts` with `/* zcode-workflow */` headers, not the engine's plain `.ts` — the agent caught it at the `workflows list` verification and adapted. Consequence: `kit workflows run <name>` resolves `<name>.ts`, so the three loops run by explicit `.dwf.ts` path until the loader learns the flavor.
+- **The engine's repo-path imports in the two unit probes** became the kit's bare-specifier idiom (`workflow-plane/services.mjs`) — the only engine-only paths found.
+- **The swarm risk-composition dropped out as planned** (no swarm runtime here); loop 4's doc records that the swarm-gate half stays engine-side.
+- **architecture.svg's "32 saved .dwf.ts" was a W-A landing artifact** (the three loops made it 35) — fixed at integration after W-B's audit flagged it.
+- **Deployment (`kit apply` + service restart) is the standing operator step**: check-plane reports the installed runtime 3/16 current — engine.mjs, services.mjs, tools.mjs, all this wave's plane files.
 
 ## Out of scope (with reasons)
 
