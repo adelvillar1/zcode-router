@@ -1261,7 +1261,10 @@ const spawnOwners = new Map(); // runId -> app name (or "operator")
 
 function findWorkflowFile(name) {
   const dir = path.join(expand(String(config.kitRoot ?? "")), "workflows");
-  for (const ext of [".ts", ".mts", ".js", ".mjs"]) {
+  // `.dwf.ts` is the kit's ported marker — the library beside the plain `.ts`
+  // files, so a name that only exists as a `.dwf.ts` still resolves. Without it
+  // the registry advertises the ported loops and every spawn of one 400s.
+  for (const ext of [".ts", ".dwf.ts", ".mts", ".js", ".mjs"]) {
     const candidate = path.join(dir, name + ext);
     try {
       if (fs.statSync(candidate).isFile()) return candidate;
@@ -1670,7 +1673,7 @@ const server = http.createServer((req, res) => {
         log({ event: "run-spawn-refused", app: appName, detail: String(error).slice(0, 300) });
         jsonOut(code, { ok: false, error });
       };
-      const wfName = String(body?.workflow ?? "").replace(/\.(m?ts|js)$/, "");
+      const wfName = String(body?.workflow ?? "").replace(/\.(dwf\.)?(m?ts|js)$/, "");
       const wfFile = wfName ? findWorkflowFile(wfName) : null;
       if (!wfFile) {
         refuse(400, `no workflow named "${wfName}" — the library lives under the kit root's workflows/`);

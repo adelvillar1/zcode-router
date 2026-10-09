@@ -10,8 +10,8 @@
  * loops re-flavored to `.dwf.ts`, the doctor row, the producer, and this probe.
  *
  * So the probe's job is the loops and the shell, not the surface: it drives the
- * REAL `.dwf.ts` bodies — the same text transform the plane applies at run
- * time (`annotateAskSites`), the surface bound as globals — over the plane's
+ * REAL `.dwf.ts` bodies — the plane's own `annotateAskSites` transform, the
+ * surface bound as globals by this probe — over the plane's
  * own `media()` bridge pointed at stub CLIs that answer in the lane's pinned
  * machine rows, with the plane's own `worldRun` writing into a real temp
  * workspace so the seam files are read back off disk rather than trusted. Each

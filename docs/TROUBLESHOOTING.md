@@ -174,18 +174,9 @@ content-production's voice leg.
   line. Grant absent is the default; the leg only appears with `--grant media`
   at spawn. Remediation: none if you did not ask for it; otherwise confirm the
   grant and that `kit doctor`'s media row is green.
-- **A ported `.dwf.ts` loop refuses every argument you pass it.** The refusal
-  reads *"unknown argument "task" — asr-calibrate.dwf declares: (none)"*, and
-  it names an arg the file plainly declares. The plane's `parseHeader` matches
-  the engine's `/* workflow` marker; every kit file carries
-  `/* zcode-workflow` (the kit's own parser in `lib/workflowlib.mjs` reads that
-  one), so the plane sees an empty declaration and rejects the first key. This
-  is kit-wide and predates the media port — it hits the tabular, semantic and
-  diagram loops identically, and it is why the loops ship with their defaults
-  pinned rather than a documented override. Remediation: run the loop with no
-  `--args` and edit the default in the file, or wait for the marker tolerance
-  in the plane (trigger: this wave — the port's assignable loops are the first
-  consumers whose whole point is a caller-supplied arg).
+- **A ported `.dwf.ts` loop refuses every argument you pass it** — resolved the day it was named. The refusal read *"unknown argument "task" — asr-calibrate.dwf declares: (none)"*, naming an arg the file plainly declares: the plane's `parseHeader` matched only the engine's `/* workflow` marker while every kit file carries `/* zcode-workflow` (the kit's own parser in `lib/workflowlib.mjs` reads that one), so the plane saw an empty declaration. It was kit-wide and predated the media port — the tabular, semantic and diagram loops refused identically, which is why they shipped with their defaults pinned. The marker is now accepted with or without the `zcode-` prefix, and a loop's declared args ride a caller's `--args` again.
+- **A ported loop refuses to resolve by name** — also resolved. The router's `findWorkflowFile` tried `.ts` before anything else and never `.dwf.ts`, so the registry advertised the ported loops while every spawn of one answered 400 *"no workflow named …"*; `kit workflows run` had the same blind spot. Both now resolve `<name>.dwf.ts`, and the run API strips the `.dwf.` prefix before it strips the extension.
+- **A run refuses with *"capability not granted in this run: media"* while holding the media grant, or reports another run's rows.** Two runs alive in one process — the router's run API spawns them concurrently — used to resolve each other's surface, because the engine bound the run's API as process globals before importing the workflow module. A media-budget-watch run was refused by an asr-calibrate run started 31ms later with no grants at all, and the budget loop's own journal lines turned up inside the asr run's directory. The engine now passes the surface into the module as an argument, destructured one scope outside the workflow's own code. If you see a grant refusal you did not ask for, suspect a concurrent run and check `tools/probe-concurrent-runs.mjs`.
 
 ## Diagram lane / world.diagram
 
