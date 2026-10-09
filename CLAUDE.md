@@ -93,8 +93,8 @@ open http://127.0.0.1:8300/dashboard
 
 ## Today's state
 
-- Router up on 127.0.0.1:8300; launchd service `com.zcode.model-router` loaded; `kit doctor` green.
-- 32 workflows installed — 19 router-assignable, 13 hand-launched.
+- Router up on 127.0.0.1:8300; the launchd service is the ZCode app's label `com.alejandrodelvillar.zcode-model-router` — the kit's own `com.zcode.model-router` is retired, and `kit apply` reloads whichever label is running the router; `kit doctor` green.
+- 41 workflows installed — 23 router-assignable, 18 hand-launched.
 - Tiers as committed: quick & standard_code → token-plan/qwen3.8-flash · hard → zai-coding-plan/GLM-5.3-Flash · prose → xiaomi-mimo/mimo-v2.6-flash · deep_context → stepfun/step-5-preview. The working tree's retargets (xiaomi-mimo quick/standard_code, stepfun hard) are deliberate and uncommitted.
 - The hardening wave is ported (2026-10-07): `npm test` (6 suites, ~175 checks) is the gate; `router/failclass.mjs` classifies before benching; ledger rows carry trigger + declared-price cost; durable writes are atomic. The serving process needs a service restart to run the new code.
 - Durable memory: the engine edition's store (`~/.agnostic-router-kit/memory/memory.jsonl`, pinned by `MEMORY_FILE_PATH` in the server and `lib/memory.mjs`) is live on the router.
