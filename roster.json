@@ -101,24 +101,24 @@
   ],
   "tiers": {
     "quick": {
-      "target": "token-plan/qwen3.8-flash",
+      "target": "xiaomi-mimo/mimo-v2.6-flash",
       "fallbacks": [
         "stepfun/step-3.7-flash",
         "zai-coding-plan/GLM-5.3-Flash"
       ]
     },
     "standard_code": {
-      "target": "token-plan/qwen3.8-flash",
+      "target": "xiaomi-mimo/mimo-v2.6-flash",
       "fallbacks": [
         "zai-coding-plan/GLM-5.3-Flash",
         "stepfun/step-3.7-flash"
       ]
     },
     "hard": {
-      "target": "zai-coding-plan/GLM-5.3-Flash",
+      "target": "stepfun/step-5-preview",
       "fallbacks": [
         "xiaomi-mimo/mimo-v2.6-pro",
-        "stepfun/step-5-preview"
+        "zai-coding-plan/GLM-5.3-Flash"
       ]
     },
     "prose": {

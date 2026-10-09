@@ -95,7 +95,7 @@ open http://127.0.0.1:8300/dashboard
 
 - Router up on 127.0.0.1:8300; the launchd service is the ZCode app's label `com.alejandrodelvillar.zcode-model-router` — the kit's own `com.zcode.model-router` is retired, and `kit apply` reloads whichever label is running the router; `kit doctor` green.
 - 41 workflows installed — 23 router-assignable, 18 hand-launched.
-- Tiers as committed: quick & standard_code → token-plan/qwen3.8-flash · hard → zai-coding-plan/GLM-5.3-Flash · prose → xiaomi-mimo/mimo-v2.6-flash · deep_context → stepfun/step-5-preview. The working tree's retargets (xiaomi-mimo quick/standard_code, stepfun hard) are deliberate and uncommitted.
+- Tiers: quick & standard_code → xiaomi-mimo/mimo-v2.6-flash · hard → stepfun/step-5-preview · prose → xiaomi-mimo/mimo-v2.6-flash · deep_context → stepfun/step-5-preview.
 - The hardening wave is ported (2026-10-07): `npm test` (6 suites, ~175 checks) is the gate; `router/failclass.mjs` classifies before benching; ledger rows carry trigger + declared-price cost; durable writes are atomic. The serving process needs a service restart to run the new code.
 - Durable memory: the engine edition's store (`~/.agnostic-router-kit/memory/memory.jsonl`, pinned by `MEMORY_FILE_PATH` in the server and `lib/memory.mjs`) is live on the router.
 - The browsing + tabular port (2026-10-07): local moli browsing (`browser`/`browser-layout` grants, default-off, keyless-first search) and the dev-decisions tabular lane (`tabular` grant, six batch loops) are live in the plane via the workflow-plane symlink — `docs/features/browsing.md` + `docs/features/tabular-decisions.md`; the installed runtime lags until `kit apply` + service restart.
